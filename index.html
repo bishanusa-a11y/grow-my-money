@@ -210,6 +210,12 @@ details.card[open]>summary::after{content:"–"}
 textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
 .hint{font-size:.8rem;color:var(--muted);margin:0}
 
+/* pin lock */
+.lock{position:fixed;inset:0;z-index:50;background:var(--bg);display:grid;place-items:center;padding:24px}
+.lockbox{display:grid;gap:14px;width:min(280px,100%);text-align:center}
+.lockbox h2{color:var(--accent);font-size:1.5rem}
+.lockbox input{text-align:center;font-family:var(--f-mono);font-size:1.4rem;letter-spacing:.3em}
+
 /* toast */
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:10px;display:flex;gap:14px;align-items:center;max-width:min(560px,calc(100vw - 32px));font-size:.9rem;z-index:20;box-shadow:0 8px 24px rgba(0,0,0,.2)}
 .toast button{border:0;background:none;color:inherit;font-weight:700;text-decoration:underline}
@@ -415,8 +421,23 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
         <button type="button" class="btn small" id="bk-restore" style="justify-self:start">Restore</button>
         <p class="hint" id="bk-result"></p>
       </section>
+      <section>
+        <h3>PIN lock</h3>
+        <p class="hint" id="pin-state"></p>
+        <label for="pin-new">New PIN (4 to 8 digits)<input id="pin-new" type="password" inputmode="numeric" maxlength="8" autocomplete="off"></label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn small" id="pin-set">Set PIN</button><button type="button" class="btn small" id="pin-off" hidden>Remove PIN</button></div>
+      </section>
     </div>
   </details>
+</div>
+
+<div class="lock" id="lock" hidden>
+  <form class="lockbox" id="lock-form" autocomplete="off">
+    <h2>Grow My Money</h2>
+    <label for="lock-pin">PIN<input id="lock-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off"></label>
+    <button class="btn primary" type="submit">Unlock</button>
+    <p class="hint" id="lock-msg"></p>
+  </form>
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden><span id="toast-msg"></span><button id="toast-act" hidden></button></div>
@@ -962,6 +983,29 @@ function setupBackup(){
     settingsDirty=false;fillSettings(true);$('#bk-box').value='';$('#bk-result').textContent='Restored.';
   };
 }
+function setupPin(){
+  const get=()=>{try{return JSON.parse(localStorage.getItem('gmm-pin')||'null')}catch(e){return null}};
+  const hash=async(salt,pin)=>{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(salt+':'+pin));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')};
+  const state=()=>{const on=!!get();$('#pin-state').textContent=on?'PIN is on for this device.':'PIN is off.';$('#pin-off').hidden=!on};
+  const lock=()=>{if(!get())return;$('#lock').hidden=false;$('#lock-pin').value='';$('#lock-msg').textContent='';setTimeout(()=>$('#lock-pin').focus(),50)};
+  $('#lock-form').addEventListener('submit',async ev=>{
+    ev.preventDefault();const p=get();
+    if(!p){$('#lock').hidden=true;return}
+    let ok=false;try{ok=await hash(p.salt,$('#lock-pin').value)===p.hash}catch(e){}
+    if(ok) $('#lock').hidden=true; else {$('#lock-pin').value='';$('#lock-msg').textContent='Wrong PIN'}
+  });
+  $('#pin-set').onclick=async()=>{
+    const v=$('#pin-new').value;
+    if(!/^\d{4,8}$/.test(v)){toast('Use 4 to 8 digits.');return}
+    const salt=uid()+uid();
+    try{localStorage.setItem('gmm-pin',JSON.stringify({salt,hash:await hash(salt,v)}));$('#pin-new').value='';state();toast('PIN set.')}
+    catch(e){toast('Could not save the PIN on this device.')}
+  };
+  $('#pin-off').onclick=()=>{try{localStorage.removeItem('gmm-pin')}catch(e){}state();toast('PIN removed.')};
+  let hiddenAt=0;
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)hiddenAt=Date.now();else if(hiddenAt&&Date.now()-hiddenAt>60000)lock()});
+  state();lock();
+}
 function parsePaste(txt,mk){
   if(!txt.trim()) return {ok:false,msg:'Paste the cells from your sheet first.'};
   const rows=txt.replace(/\r/g,'').split('\n').map(r=>r.split('\t'));
@@ -1009,7 +1053,7 @@ $('#next').onclick=()=>{view=mkAdd(view,1);$('#p-month').value=view;render()};
 $('#jump-log').onclick=()=>{$('#log-card').scrollIntoView({behavior:'smooth',block:'start'});setTimeout(()=>$('#f-amt').focus({preventScroll:true}),300)};
 const setBasis=b=>{basis=b;try{localStorage.setItem('runway-basis',b)}catch(e){}render()};
 $('#basis-budget').onclick=()=>setBasis('budget');$('#basis-recent').onclick=()=>setBasis('recent');
-setupForm();setupGoals();setupSettings();setupBackup();
+setupForm();setupGoals();setupSettings();setupBackup();setupPin();
 render();
 initStore();
 })();
