@@ -147,6 +147,7 @@ label{display:grid;gap:4px;font-size:.85rem;color:var(--muted);min-width:0}
 /* entries */
 .entries{list-style:none;margin:0;padding:0}
 .entry{display:grid;grid-template-columns:52px 46px minmax(0,1fr) auto 28px;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:.9rem}
+.entry{cursor:pointer}
 .entry .d{font-family:var(--f-mono);font-size:.78rem;color:var(--muted)}
 .entry .note{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .entry .num{text-align:right}
@@ -222,6 +223,8 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
 
 @media (max-width:860px){
   .cols,.hero-main{grid-template-columns:minmax(0,1fr)}
+  .stack{display:contents}
+  #log-card{order:-1}
 }
 @media (max-width:560px){
   .hero{padding:18px}
@@ -315,7 +318,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
         <div class="card-head"><h2 id="log-h">Log spending</h2>
           <div class="typeseg" role="group" aria-label="Entry type">
             <button type="button" id="t-exp" aria-pressed="true">Spent</button>
-            <button type="button" id="t-inc" aria-pressed="false">Received</button>
+            <button type="button" id="t-inc" aria-pressed="false">Extra income</button>
           </div>
         </div>
         <form class="form" id="log-form" autocomplete="off">
@@ -325,7 +328,8 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
             <label for="f-date">Date<input type="date" id="f-date" required></label>
           </div>
           <label for="f-note">Note<input id="f-note" placeholder="e.g. Flight to Seoul, LB30, Grab"></label>
-          <button class="btn primary" type="submit">Add entry</button>
+          <button class="btn primary" type="submit" id="f-submit">Add entry</button>
+          <button class="btn small" type="button" id="f-cancel" hidden>Cancel edit</button>
           <p class="hint" id="f-hint"></p>
         </form>
       </section>
@@ -373,7 +377,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
           </div>
           <label for="s-card">Card bills owed<input id="s-card" inputmode="decimal"></label>
           <label for="s-floor">Cash floor<input id="s-floor" inputmode="decimal"></label>
-          <label for="s-income">Monthly income<input id="s-income" inputmode="decimal"></label>
+          <label for="s-income">Monthly income (added automatically)<input id="s-income" inputmode="decimal"></label>
           <label for="s-inv">Investments<input id="s-inv" inputmode="decimal"></label>
           <label class="check" for="s-countinv"><input type="checkbox" id="s-countinv">Count in runway</label>
         </section>
@@ -547,6 +551,7 @@ function monthData(mk){
   let fixed=0;
   if(src==='sheet') fixed=num(h.fixed);
   else if(mk<=CUR && (src==='log'|| (s&&s.openingMonth&&mk>=s.openingMonth))) fixed=fixedTotal(s);
+  if(src!=='sheet'&&s&&s.openingMonth&&mk>=s.openingMonth&&mk<=CUR) income+=num(s.monthlyIncome);
   return {mk,cats,variable,income,fixed,total:fixed+variable,src};
 }
 function cashNow(){
@@ -626,6 +631,7 @@ function alertsFor(){
       if(r&&basis==='budget'&&r.fixed+r.variable>(p.fx+p.vb)*1.1) list.push(['warn','HABIT',`Last ${r.n} months averaged <b>${m0(r.fixed+r.variable)}</b>, budget is ${m0(p.fx+p.vb)}`]);
     }
   }
+  if(window.GMM_STATIC&&isCur){let last=0;try{last=+localStorage.getItem('gmm-last-backup')||0}catch(e){}if(Date.now()-last>30*DAY)list.push(['info','BACKUP','No backup in 30 days. Settings → Copy backup'])}
   if(!list.some(a=>a[0]==='bad'||a[0]==='warn')) list.unshift(['ok','CLEAR','All within budget']);
   return list;
 }
@@ -668,7 +674,7 @@ function renderRunway(){
     stats.push(['Safe spend',p.safe>0?m0(p.safe):m0(0),p.safe>=p.burn+p.income?'good':'bad']);
     stats.push([p.gap>0?'Shortfall':'Spare',m0(Math.abs(p.gap)),p.gap>0?'bad':'good']);
   } else {
-    stats.push(['Cash floor',m0(num(s.floor)),'']);
+    stats.push(['Cash + investments',m0(p.now+p.inv),'']);
     stats.push(['Investments',m0(p.inv)+(p.countInv?' (counted)':''),'']);
   }
   $('#r-stats').innerHTML=stats.map(([t,v,c])=>`<div><dt>${t}</dt><dd class="${c}">${v}</dd></div>`).join('');
@@ -716,7 +722,7 @@ function renderMonth(){
     if(isCur){const exp=vb*day/D;note=md.variable<=exp?`${m0(exp-md.variable)} under pace`:`${m0(md.variable-exp)} over pace`}
     else note=md.variable<=vb?`${m0(vb-md.variable)} under budget`:`${m0(md.variable-vb)} over budget`;
   }
-  if(md.income) note+=` · Received ${m0(md.income)}`;
+  if(md.income) note+=` · Income ${m0(md.income)}`;
   $('#m-pace-note').textContent=note;
   const rows=CATS.filter(c=>budgetOf(c.k)>0||md.cats[c.k]!==0||(c.k!=='oth'&&c.k!=='kpo'&&!isHidden(c.k)));
   $('#cats').innerHTML=rows.map(c=>{
@@ -748,6 +754,7 @@ function renderEntries(){
     li.innerHTML=`<span class="d">${dt.getDate()} ${MON[dt.getMonth()]}</span><span class="code">${inc?'IN':(CAT[e.cat]||CAT.oth).code}</span><span class="note"></span><span class="num ${inc?'inc':''}">${inc?'+':''}${m2(num(e.amt))}</span><button aria-label="Delete entry">×</button>`;
     li.querySelector('.note').textContent=e.note||(inc?'Income':(CAT[e.cat]||CAT.oth).name);
     li.querySelector('button').onclick=()=>deleteEntry(view,e.id);
+    li.onclick=ev=>{if(ev.target.tagName!=='BUTTON')startEdit(view,e)};
     ul.appendChild(li);
   });
 }
@@ -766,6 +773,7 @@ function setupForm(){
   $('#f-date').value=TODAY.getFullYear()+'-'+pad(TODAY.getMonth()+1)+'-'+pad(TODAY.getDate());
   const setType=t=>{entryType=t;$('#t-exp').setAttribute('aria-pressed',t==='expense');$('#t-inc').setAttribute('aria-pressed',t==='income');$('#f-cat-l').hidden=t==='income';updateHint()};
   $('#t-exp').onclick=()=>setType('expense');$('#t-inc').onclick=()=>setType('income');
+  $('#f-cancel').onclick=()=>{stopEdit();$('#f-amt').value='';$('#f-note').value='';updateHint()};
   ['#f-amt','#f-cat','#f-date'].forEach(s=>$(s).addEventListener('input',updateHint));
   $('#log-form').addEventListener('submit',ev=>{
     ev.preventDefault();
@@ -774,9 +782,24 @@ function setupForm(){
     if(!date){toast('Pick a date.');return}
     const e={id:uid(),date,amt:Math.round(amt*100)/100,type:entryType,note:$('#f-note').value.trim().slice(0,120)};
     if(entryType==='expense') e.cat=$('#f-cat').value;
+    if(editing){
+      const k='m-'+editing.mk, d=clone(docs[k]);
+      d.entries=(d.entries||[]).filter(x=>x.id!==editing.id);
+      if(k==='m-'+date.slice(0,7)) docs[k]=d; else save(k,d);
+      stopEdit();
+    }
     addEntry(e);
     $('#f-amt').value='';$('#f-note').value='';updateHint();
   });
+}
+let editing=null;
+function stopEdit(){editing=null;$('#f-submit').textContent='Add entry';$('#f-cancel').hidden=true}
+function startEdit(mk,e){
+  $(e.type==='income'?'#t-inc':'#t-exp').click();
+  syncCatSelect();
+  $('#f-amt').value=e.amt;if(e.cat)$('#f-cat').value=e.cat;$('#f-date').value=e.date;$('#f-note').value=e.note||'';
+  editing={mk,id:e.id};$('#f-submit').textContent='Save changes';$('#f-cancel').hidden=false;
+  $('#log-card').scrollIntoView({behavior:'smooth',block:'start'});updateHint();
 }
 let catSig='';
 function syncCatSelect(){
@@ -968,6 +991,7 @@ function setupBackup(){
   let armed=false;
   $('#bk-copy').onclick=async()=>{
     const txt=JSON.stringify({app:'grow-my-money',v:1,docs});
+    try{localStorage.setItem('gmm-last-backup',String(Date.now()))}catch(e){}
     try{await navigator.clipboard.writeText(txt);$('#bk-result').textContent='Copied.'}
     catch(e){const b=$('#bk-box');b.value=txt;b.focus();b.select();$('#bk-result').textContent='Select all and copy.'}
   };
@@ -977,6 +1001,7 @@ function setupBackup(){
     if(!armed){armed=true;$('#bk-restore').textContent='Replace my data';$('#bk-result').textContent='This overwrites the data here. Tap again to confirm.';return}
     armed=false;$('#bk-restore').textContent='Restore';
     Object.keys(d.docs).forEach(id=>{if(/^(settings|history|goals|m-\d{4}-\d{2})$/.test(id)&&d.docs[id]&&typeof d.docs[id]==='object')save(id,d.docs[id])});
+    try{localStorage.setItem('gmm-last-backup',String(Date.now()))}catch(e){}
     settingsDirty=false;fillSettings(true);$('#bk-box').value='';$('#bk-result').textContent='Restored.';
   };
 }
