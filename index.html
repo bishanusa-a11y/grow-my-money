@@ -433,6 +433,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
           <div><div class="eyebrow">Total value</div><span class="num" id="inv-total">—</span></div>
           <div style="text-align:right"><div class="eyebrow">Profit / loss</div><span class="num" style="font-size:1.1rem" id="inv-pl">—</span></div>
         </div>
+        <div class="small muted" id="inv-locked" style="margin-bottom:10px"></div>
         <form class="form" id="inv-form" hidden style="margin-bottom:16px" autocomplete="off">
           <label for="i-name">Platform<input id="i-name" placeholder="e.g. Robo, Brokerage, Crypto" required></label>
           <div class="row2">
@@ -440,6 +441,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
             <label for="i-val">Value now ($)<input id="i-val" inputmode="decimal" required></label>
           </div>
           <label for="i-month">Record for month<input type="month" id="i-month"></label>
+          <label class="check" for="i-lock"><input type="checkbox" id="i-lock">Locked, such as CPF (not counted as spendable)</label>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn primary small" type="submit">Save</button><button class="btn small" type="button" id="inv-cancel">Cancel</button><button class="btn link small" type="button" id="inv-del" hidden>Delete</button></div>
         </form>
         <ul class="entries" id="inv-list"></ul>
@@ -453,6 +455,10 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
             <label for="sn-val">Investments value ($)<input id="sn-val" inputmode="decimal" required></label>
           </div>
           <label for="sn-cash">Cash at month end ($)<input id="sn-cash" inputmode="decimal"></label>
+          <div class="row2">
+            <label for="sn-lin">Locked put in ($)<input id="sn-lin" inputmode="decimal"></label>
+            <label for="sn-lval">Locked value ($)<input id="sn-lval" inputmode="decimal"></label>
+          </div>
           <div style="display:flex;gap:8px"><button class="btn primary small" type="submit">Save month</button><button class="btn small" type="button" id="snap-cancel">Cancel</button></div>
         </form>
       </section>
@@ -578,7 +584,7 @@ const effVar=mk=>CATS.reduce((a,c)=>a+budgetOf(c.k,mk),0);
 const histMonth=mk=>((docs.history&&docs.history.months)||[]).find(m=>m.mk===mk);
 const goalsList=()=>(docs.goals&&docs.goals.items)||[];
 const invList=()=>(docs.invest&&docs.invest.items)||[];
-const invTotal=()=>invList().length?invList().reduce((a,i)=>a+num(i.value),0):num(S()&&S().investments);
+const invTotal=()=>{const l=invList().filter(i=>!i.locked);return l.length?l.reduce((a,i)=>a+num(i.value),0):num(S()&&S().investments)};
 const goalsSaved=()=>goalsList().reduce((a,g)=>a+num(g.saved),0);
 
 function monthData(mk){
@@ -934,7 +940,13 @@ let invEditing=null;
 const invSnaps=()=>(docs.invest&&docs.invest.snaps)||{};
 function saveInvest(items,mk){
   const snaps=Object.assign({},invSnaps());
-  if(mk&&items.length) snaps[mk]={...(snaps[mk]||{}),v:items.reduce((a,i)=>a+num(i.value),0),i:items.reduce((a,i)=>a+num(i.invested),0)};
+  if(mk&&items.length){
+    const sum=(l,k)=>l.reduce((a,i)=>a+num(i[k]),0), liq=items.filter(i=>!i.locked), lock=items.filter(i=>i.locked);
+    const o=Object.assign({},snaps[mk]||{});
+    if(liq.length){o.v=sum(liq,'value');o.i=sum(liq,'invested')}
+    if(lock.length){o.lv=sum(lock,'value');o.li=sum(lock,'invested')}
+    snaps[mk]=o;
+  }
   return save('invest',{items,snaps});
 }
 function cashAt(mk){
@@ -953,10 +965,10 @@ function renderGrowth(){
   let lastSnap=null, prevSnapK=null;
   const rows=mks.map(m=>{
     let g=null;
-    if(sn[m]){ if(prevSnapK) g=(sn[m].v-sn[prevSnapK].v)-(sn[m].i-sn[prevSnapK].i); lastSnap=sn[m]; prevSnapK=m; }
-    const inv=sn[m]?num(sn[m].v):(m===CUR||!lastSnap?invTotal():num(lastSnap.v));
+    if(sn[m]&&sn[m].v!=null){ if(prevSnapK) g=(sn[m].v-sn[prevSnapK].v)-(sn[m].i-sn[prevSnapK].i); lastSnap=sn[m]; prevSnapK=m; }
+    const inv=sn[m]&&sn[m].v!=null?num(sn[m].v):(m===CUR||!lastSnap?invTotal():num(lastSnap.v));
     const c=cashAt(m), cash=c!=null?c:(sn[m]&&sn[m].c!=null?num(sn[m].c):null);
-    return {m,inv,cash,total:inv+(cash||0),g};
+    return {m,inv,cash,total:inv+(cash||0),g,lv:sn[m]&&sn[m].lv!=null?num(sn[m].lv):null};
   });
   const last=rows[rows.length-1], yr=last.m.slice(0,4);
   let h='';
@@ -968,26 +980,35 @@ function renderGrowth(){
     h+=`<div class="small" style="margin-bottom:6px">Cash + investments ${baseT.m<yr+'-01'?'year to date':'since '+mkLabel(baseT.m)}: <b style="color:${col(d)}">${sg(d)}</b></div>`;
   }
   // investment growth excluding money added
-  const smk=Object.keys(sn).sort();
+  const smk=Object.keys(sn).filter(k=>sn[k].v!=null).sort();
   if(smk.length>1){
     const l=smk[smk.length-1], bk=smk.filter(m=>m<l.slice(0,4)+'-01').pop()||smk[0];
     const added=sn[l].i-sn[bk].i, g=(sn[l].v-sn[bk].v)-added, den=num(sn[bk].v)+added;
     h+=`<div class="small" style="margin-bottom:6px">Investment growth ${bk<l.slice(0,4)+'-01'?'year to date':'since '+mkLabel(bk)}: <b style="color:${col(g)}">${sg(g)}${den>0?' ('+(g/den*100).toFixed(1)+'%)':''}</b> · ${m0(added)} added</div>`;
+  }
+  const lk=Object.keys(sn).filter(k=>sn[k].lv!=null).sort();
+  if(lk.length>1){
+    const l=lk[lk.length-1], bk=lk.filter(m=>m<l.slice(0,4)+'-01').pop()||lk[0];
+    const added=num(sn[l].li)-num(sn[bk].li), g=(sn[l].lv-sn[bk].lv)-added, den=num(sn[bk].lv)+added;
+    h+=`<div class="small" style="margin-bottom:6px">Locked growth ${bk<l.slice(0,4)+'-01'?'year to date':'since '+mkLabel(bk)}: <b style="color:${col(g)}">${sg(g)}${den>0?' ('+(g/den*100).toFixed(1)+'%)':''}</b> · ${m0(added)} added</div>`;
   }
   if(rows.length<2) h+=`<div class="small muted" style="margin-bottom:6px">First record is ${mkLabel(last.m)}. Growth shows from next month.</div>`;
   const show=rows.slice(-12), top=Math.max(...show.map(r=>r.total),1);
   h+='<div class="small muted" style="margin:8px 0 6px"><i style="display:inline-block;width:10px;height:10px;background:var(--fixed);margin-right:5px"></i>Cash <i style="display:inline-block;width:10px;height:10px;background:var(--accent);margin:0 5px 0 10px"></i>Investments</div>';
   h+='<div class="ibars">'+show.map(r=>`<div title="${mkLabel(r.m)} ${m0(r.total)}"><i class="c" style="height:${Math.max(0,(r.cash||0))/top*100}%"></i><i style="height:${Math.max(1,r.inv/top*100)}%"></i><span>${MON[+r.m.slice(5)-1]}</span></div>`).join('')+'</div>';
   h+='<ul class="entries">'+show.slice().reverse().map(r=>
-    `<li class="entry" style="grid-template-columns:54px minmax(0,1fr) auto;cursor:default"><span class="d">${MON[+r.m.slice(5)-1]} ${r.m.slice(2,4)}</span><span class="small muted" style="min-width:0">${r.cash!=null?'Cash '+m0(r.cash)+' · ':''}Inv ${m0(r.inv)}${r.g!=null?` <b style="color:${col(r.g)}">${sg(r.g)}</b>`:''}</span><span class="num">${m0(r.total)}</span></li>`
+    `<li class="entry" style="grid-template-columns:54px minmax(0,1fr) auto;cursor:default"><span class="d">${MON[+r.m.slice(5)-1]} ${r.m.slice(2,4)}</span><span class="small muted" style="min-width:0">${r.cash!=null?'Cash '+m0(r.cash)+' · ':''}Inv ${m0(r.inv)}${r.g!=null?` <b style="color:${col(r.g)}">${sg(r.g)}</b>`:''}${r.lv!=null?' · Locked '+m0(r.lv):''}</span><span class="num">${m0(r.total)}</span></li>`
   ).join('')+'</ul>';
   box.innerHTML=h;
 }
 function renderInvest(){
   const items=invList(), ul=$('#inv-list');
-  const tv=invTotal(), tin=items.reduce((a,i)=>a+num(i.invested),0), pl=tv-tin, el=$('#inv-pl');
+  const liq=items.filter(i=>!i.locked), lock=items.filter(i=>i.locked);
+  const tv=invTotal(), tin=liq.reduce((a,i)=>a+num(i.invested),0), pl=tv-tin, el=$('#inv-pl');
+  const lv=lock.reduce((a,i)=>a+num(i.value),0), lin=lock.reduce((a,i)=>a+num(i.invested),0);
+  $('#inv-locked').textContent=lock.length?`Locked (not spendable): ${m0(lv)}`+(lin?` · ${lv-lin>=0?'+':''}${m0(lv-lin)} growth`:''):'';
   $('#inv-total').textContent=m0(tv);
-  const has=items.length&&tin;
+  const has=liq.length&&tin;
   el.textContent=has?(pl>=0?'+':'')+m0(pl)+' ('+(pl/tin*100).toFixed(1)+'%)':'—';
   el.style.color=has?(pl>=0?'var(--ok)':'var(--bad)'):'';
   if(!items.length){ul.innerHTML='<li class="empty">Add each platform with what you put in and its value now.</li>';return}
@@ -996,7 +1017,7 @@ function renderInvest(){
     const li=document.createElement('li');li.className='entry';li.style.gridTemplateColumns='minmax(0,1fr) auto auto';
     const g=num(i.value)-num(i.invested);
     li.innerHTML=`<span class="note"></span><span class="num small" style="color:${g>=0?'var(--ok)':'var(--bad)'}">${num(i.invested)?(g>=0?'+':'')+m0(g):''}</span><span class="num">${m0(num(i.value))}</span>`;
-    li.querySelector('.note').textContent=i.name+(i.upd?' · '+i.upd:'');
+    li.querySelector('.note').textContent=i.name+(i.locked?' · locked':'')+(i.upd?' · '+i.upd:'');
     li.onclick=()=>openInv(i);
     ul.appendChild(li);
   });
@@ -1004,7 +1025,7 @@ function renderInvest(){
 function openInv(i){
   invEditing=i?i.id:null;
   $('#i-name').value=i?i.name:'';$('#i-in').value=i?(i.invested??''):'';$('#i-val').value=i?(i.value??''):'';
-  $('#i-month').value=CUR;$('#inv-del').hidden=!i;$('#inv-form').hidden=false;$('#i-'+(i?'val':'name')).focus();
+  $('#i-month').value=CUR;$('#i-lock').checked=!!(i&&i.locked);$('#inv-del').hidden=!i;$('#inv-form').hidden=false;$('#i-'+(i?'val':'name')).focus();
 }
 function setupInvest(){
   const f=$('#inv-form');
@@ -1015,7 +1036,7 @@ function setupInvest(){
   sf.addEventListener('submit',ev=>{
     ev.preventDefault();
     const mk=$('#sn-month').value; if(!mk){toast('Pick a month.');return}
-    const snaps=Object.assign({},invSnaps()); snaps[mk]={v:num($('#sn-val').value),i:num($('#sn-in').value)};if($('#sn-cash').value.trim())snaps[mk].c=num($('#sn-cash').value);
+    const snaps=Object.assign({},invSnaps()); snaps[mk]=Object.assign({},snaps[mk]||{},{v:num($('#sn-val').value),i:num($('#sn-in').value)});if($('#sn-cash').value.trim())snaps[mk].c=num($('#sn-cash').value);if($('#sn-lval').value.trim()){snaps[mk].lv=num($('#sn-lval').value);snaps[mk].li=num($('#sn-lin').value)}
     save('invest',{items:clone(docs.invest).items||[],snaps});
     sf.reset();sf.hidden=true;toast('Saved '+mkLabel(mk)+'.');
   });
@@ -1028,7 +1049,7 @@ function setupInvest(){
     ev.preventDefault();
     const name=$('#i-name').value.trim().slice(0,60);
     if(!name){toast('Give the platform a name.');return}
-    const it={id:invEditing||uid(),name,invested:num($('#i-in').value),value:num($('#i-val').value),upd:TODAY.getDate()+' '+MON[TODAY.getMonth()]};
+    const it={id:invEditing||uid(),name,invested:num($('#i-in').value),value:num($('#i-val').value),locked:$('#i-lock').checked,upd:TODAY.getDate()+' '+MON[TODAY.getMonth()]};
     const items=clone(docs.invest).items||[], k=items.findIndex(x=>x.id===it.id);
     if(k>=0) items[k]=it; else items.push(it);
     saveInvest(items,$('#i-month').value||CUR);f.hidden=true;invEditing=null;toast('Saved '+name+'.');
