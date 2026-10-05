@@ -213,6 +213,11 @@ details.card[open]>summary::after{content:"–"}
 textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
 .hint{font-size:.8rem;color:var(--muted);margin:0}
 
+.ibars{display:flex;gap:4px;align-items:flex-end;height:70px;border-bottom:1px solid var(--line);margin-bottom:20px}
+.ibars div{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;position:relative;min-width:0}
+.ibars i{display:block;background:var(--accent);border-radius:3px 3px 0 0}
+.ibars span{position:absolute;top:100%;left:0;right:0;text-align:center;margin-top:3px;font-family:var(--f-mono);font-size:.6rem;color:var(--muted)}
+
 /* pin lock */
 .lock{position:fixed;inset:0;z-index:50;background:var(--bg);display:grid;place-items:center;padding:24px}
 .lockbox{display:grid;gap:14px;width:min(280px,100%);text-align:center}
@@ -432,9 +437,21 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
             <label for="i-in">Put in ($)<input id="i-in" inputmode="decimal"></label>
             <label for="i-val">Value now ($)<input id="i-val" inputmode="decimal" required></label>
           </div>
+          <label for="i-month">Record for month<input type="month" id="i-month"></label>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn primary small" type="submit">Save</button><button class="btn small" type="button" id="inv-cancel">Cancel</button><button class="btn link small" type="button" id="inv-del" hidden>Delete</button></div>
         </form>
         <ul class="entries" id="inv-list"></ul>
+        <h3 style="margin-top:18px;margin-bottom:8px;font-size:1rem">Month by month</h3>
+        <div id="inv-growth"></div>
+        <button class="btn link small" type="button" id="snap-add-btn">Add a past month</button>
+        <form class="form" id="snap-form" hidden style="margin-top:12px" autocomplete="off">
+          <label for="sn-month">Month<input type="month" id="sn-month" required></label>
+          <div class="row2">
+            <label for="sn-in">Total put in ($)<input id="sn-in" inputmode="decimal" required></label>
+            <label for="sn-val">Total value ($)<input id="sn-val" inputmode="decimal" required></label>
+          </div>
+          <div style="display:flex;gap:8px"><button class="btn primary small" type="submit">Save month</button><button class="btn small" type="button" id="snap-cancel">Cancel</button></div>
+        </form>
       </section>
     </div>
   </div>
@@ -911,6 +928,32 @@ function setupGoals(){
 
 /* ---------- investments ---------- */
 let invEditing=null;
+const invSnaps=()=>(docs.invest&&docs.invest.snaps)||{};
+function saveInvest(items,mk){
+  const snaps=Object.assign({},invSnaps());
+  if(mk&&items.length) snaps[mk]={v:items.reduce((a,i)=>a+num(i.value),0),i:items.reduce((a,i)=>a+num(i.invested),0)};
+  return save('invest',{items,snaps});
+}
+function renderGrowth(){
+  const sn=invSnaps(), mks=Object.keys(sn).sort(), box=$('#inv-growth');
+  if(!mks.length){box.innerHTML='<p class="hint" style="margin-bottom:8px">Each time you update a platform, that month is recorded here.</p>';return}
+  const last=mks[mks.length-1], yr=last.slice(0,4);
+  const baseK=mks.filter(m=>m<yr+'-01').pop()||mks[0];
+  const gain=(a,b)=>(sn[b].v-sn[a].v)-(sn[b].i-sn[a].i);
+  const col=g=>g>=0?'var(--ok)':'var(--bad)', sg=g=>(g>=0?'+':'')+m0(g);
+  let h='';
+  if(baseK!==last){
+    const g=gain(baseK,last), added=sn[last].i-sn[baseK].i, den=sn[baseK].v+added;
+    h+=`<div class="small" style="margin-bottom:10px">${baseK<yr+'-01'?'Year to date':'Since '+mkLabel(baseK)}: <b style="color:${col(g)}">${sg(g)}${den>0?' ('+(g/den*100).toFixed(1)+'%)':''}</b> growth · ${m0(added)} added</div>`;
+  } else h+=`<div class="small muted" style="margin-bottom:10px">First record is ${mkLabel(last)}. Growth shows from the next month.</div>`;
+  const show=mks.slice(-12), top=Math.max(...show.map(m=>sn[m].v),1);
+  h+='<div class="ibars">'+show.map(m=>`<div title="${mkLabel(m)} ${m0(sn[m].v)}"><i style="height:${Math.max(2,sn[m].v/top*100)}%"></i><span>${MON[+m.slice(5)-1]}</span></div>`).join('')+'</div>';
+  h+='<ul class="entries">'+show.slice().reverse().map(m=>{
+    const k=mks.indexOf(m), g=k>0?gain(mks[k-1],m):null;
+    return `<li class="entry" style="grid-template-columns:minmax(0,1fr) auto auto;cursor:default"><span class="d">${mkLabel(m)}</span><span class="num small" style="color:${g==null?'inherit':col(g)}">${g==null?'':sg(g)}</span><span class="num">${m0(sn[m].v)}</span></li>`;
+  }).join('')+'</ul>';
+  box.innerHTML=h;
+}
 function renderInvest(){
   const items=invList(), ul=$('#inv-list');
   const tv=invTotal(), tin=items.reduce((a,i)=>a+num(i.invested),0), pl=tv-tin, el=$('#inv-pl');
@@ -932,15 +975,25 @@ function renderInvest(){
 function openInv(i){
   invEditing=i?i.id:null;
   $('#i-name').value=i?i.name:'';$('#i-in').value=i?(i.invested??''):'';$('#i-val').value=i?(i.value??''):'';
-  $('#inv-del').hidden=!i;$('#inv-form').hidden=false;$('#i-'+(i?'val':'name')).focus();
+  $('#i-month').value=CUR;$('#inv-del').hidden=!i;$('#inv-form').hidden=false;$('#i-'+(i?'val':'name')).focus();
 }
 function setupInvest(){
   const f=$('#inv-form');
   $('#inv-add-btn').onclick=()=>openInv(null);
+  const sf=$('#snap-form');
+  $('#snap-add-btn').onclick=()=>{sf.hidden=false;$('#sn-month').value=mkAdd(CUR,-1);$('#sn-in').focus()};
+  $('#snap-cancel').onclick=()=>{sf.hidden=true};
+  sf.addEventListener('submit',ev=>{
+    ev.preventDefault();
+    const mk=$('#sn-month').value; if(!mk){toast('Pick a month.');return}
+    const snaps=Object.assign({},invSnaps()); snaps[mk]={v:num($('#sn-val').value),i:num($('#sn-in').value)};
+    save('invest',{items:clone(docs.invest).items||[],snaps});
+    sf.reset();sf.hidden=true;toast('Saved '+mkLabel(mk)+'.');
+  });
   $('#inv-cancel').onclick=()=>{f.hidden=true;invEditing=null};
   $('#inv-del').onclick=()=>{
     const before=clone(docs.invest), items=(clone(docs.invest).items||[]).filter(x=>x.id!==invEditing);
-    save('invest',{items});f.hidden=true;invEditing=null;toast('Platform deleted.','Undo',()=>save('invest',before));
+    saveInvest(items,invSnaps()[CUR]?CUR:null);f.hidden=true;invEditing=null;toast('Platform deleted.','Undo',()=>save('invest',before));
   };
   f.addEventListener('submit',ev=>{
     ev.preventDefault();
@@ -949,7 +1002,7 @@ function setupInvest(){
     const it={id:invEditing||uid(),name,invested:num($('#i-in').value),value:num($('#i-val').value),upd:TODAY.getDate()+' '+MON[TODAY.getMonth()]};
     const items=clone(docs.invest).items||[], k=items.findIndex(x=>x.id===it.id);
     if(k>=0) items[k]=it; else items.push(it);
-    save('invest',{items});f.hidden=true;invEditing=null;toast('Saved '+name+'.');
+    saveInvest(items,$('#i-month').value||CUR);f.hidden=true;invEditing=null;toast('Saved '+name+'.');
   });
 }
 
@@ -1139,7 +1192,7 @@ function render(){
   $('#mlabel').textContent=mkLabel(view);
   $('#next').disabled=view>=mkAdd(CUR,1);
   if(mode==='loading') return;
-  renderAlerts();renderRunway();renderMonth();renderEntries();renderGoals();renderInvest();renderHistory();syncCatSelect();updateHint();
+  renderAlerts();renderRunway();renderMonth();renderEntries();renderGoals();renderInvest();renderGrowth();renderHistory();syncCatSelect();updateHint();
   if(!$('#settings').open) fillSettings(true); else fillSettings(false);
 }
 $('#prev').onclick=()=>{view=mkAdd(view,-1);$('#p-month').value=view;render()};
