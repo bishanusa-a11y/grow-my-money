@@ -199,6 +199,8 @@ details.card>summary{cursor:pointer;list-style:none;display:flex;justify-content
 details.card>summary::-webkit-details-marker{display:none}
 details.card>summary::after{content:"+";font-family:var(--f-mono);font-size:1.2rem;color:var(--muted)}
 details.card[open]>summary::after{content:"–"}
+#settings>summary{pointer-events:none}
+#settings>summary::after{content:none}
 .sgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:24px;margin-top:18px}
 .sgrid section{display:grid;gap:10px;align-content:start;min-width:0}
 .sgrid h3{font-size:1rem}
@@ -258,9 +260,77 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
       <span class="lbl" id="mlabel">—</span>
       <button class="iconbtn" id="next" aria-label="Next month">›</button>
       <button class="btn primary" id="jump-log" style="margin-left:8px">Log spending</button>
+      <button class="iconbtn" id="menu-btn" aria-label="Settings" aria-expanded="false" title="Settings">⋮</button>
     </div>
   </header>
   <div id="store-banner" class="banner" hidden></div>
+  <details class="card" id="settings" hidden>
+    <summary><h2>Settings</h2></summary>
+    <form id="set-form" autocomplete="off">
+      <div class="sgrid">
+        <section>
+          <h3>Cash</h3>
+          <div class="row2">
+            <label for="s-cash">Starting cash<input id="s-cash" inputmode="decimal"></label>
+            <label for="s-cash-month">Month<input type="month" id="s-cash-month"></label>
+          </div>
+          <label for="s-card">Card bills owed<input id="s-card" inputmode="decimal"></label>
+          <label for="s-floor">Cash floor<input id="s-floor" inputmode="decimal"></label>
+          <label for="s-income">Monthly income (added automatically)<input id="s-income" inputmode="decimal"></label>
+          <label for="s-inv">Investments<input id="s-inv" inputmode="decimal"></label>
+          <label class="check" for="s-countinv"><input type="checkbox" id="s-countinv">Count in runway</label>
+        </section>
+        <section>
+          <h3>Fixed bills</h3>
+          <div id="fx-list" style="display:grid;gap:6px"></div>
+          <button type="button" class="btn small" id="fx-add" style="justify-self:start">Add bill</button>
+          <h3 style="margin-top:10px">Alerts</h3>
+          <label for="s-warn">Warn at (%)<input id="s-warn" inputmode="numeric"></label>
+        </section>
+        <section>
+          <h3>Budgets</h3>
+          <div class="bgrid" id="bgrid"></div>
+          <p class="hint" id="bud-total"></p>
+        </section>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:18px;flex-wrap:wrap">
+        <button class="btn primary" type="submit">Save settings</button>
+        <span class="small muted" id="set-status"></span>
+      </div>
+    </form>
+
+    <div class="sgrid" style="border-top:1px solid var(--line);padding-top:18px">
+      <section>
+        <h3>Import from sheet</h3>
+        <p class="hint">Copy columns G to R, header to the 31st, and paste.</p>
+        <label for="p-month">Month<input type="month" id="p-month"></label>
+        <label for="p-box">Paste<textarea id="p-box" placeholder="Paste here"></textarea></label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn small" id="p-preview">Check</button><button type="button" class="btn primary small" id="p-import" hidden>Import</button></div>
+        <p class="hint" id="p-result"></p>
+      </section>
+      <section>
+        <h3>Export to sheet</h3>
+        <p class="hint">Paste into cell H2.</p>
+        <button type="button" class="btn small" id="x-copy" style="justify-self:start">Copy month</button>
+        <textarea id="x-box" hidden readonly></textarea>
+        <p class="hint" id="x-result"></p>
+      </section>
+      <section>
+        <h3>Backup</h3>
+        <p class="hint">Copy on one device, paste on another.</p>
+        <button type="button" class="btn small" id="bk-copy" style="justify-self:start">Copy backup</button>
+        <label for="bk-box">Paste backup<textarea id="bk-box"></textarea></label>
+        <button type="button" class="btn small" id="bk-restore" style="justify-self:start">Restore</button>
+        <p class="hint" id="bk-result"></p>
+      </section>
+      <section>
+        <h3>PIN lock</h3>
+        <p class="hint" id="pin-state"></p>
+        <label for="pin-new">New PIN (4 to 8 digits)<input id="pin-new" type="password" inputmode="numeric" maxlength="8" autocomplete="off"></label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn small" id="pin-set">Set PIN</button><button type="button" class="btn small" id="pin-off" hidden>Remove PIN</button></div>
+      </section>
+    </div>
+  </details>
 
   <section class="card" aria-labelledby="alerts-h">
     <div class="card-head"><h2 id="alerts-h">Alerts</h2><span class="small muted" id="alerts-sub"></span></div>
@@ -365,73 +435,6 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
     <div class="detail" id="h-detail">Tap a month.</div>
   </section>
 
-  <details class="card" id="settings">
-    <summary><h2>Settings</h2></summary>
-    <form id="set-form" autocomplete="off">
-      <div class="sgrid">
-        <section>
-          <h3>Cash</h3>
-          <div class="row2">
-            <label for="s-cash">Starting cash<input id="s-cash" inputmode="decimal"></label>
-            <label for="s-cash-month">Month<input type="month" id="s-cash-month"></label>
-          </div>
-          <label for="s-card">Card bills owed<input id="s-card" inputmode="decimal"></label>
-          <label for="s-floor">Cash floor<input id="s-floor" inputmode="decimal"></label>
-          <label for="s-income">Monthly income (added automatically)<input id="s-income" inputmode="decimal"></label>
-          <label for="s-inv">Investments<input id="s-inv" inputmode="decimal"></label>
-          <label class="check" for="s-countinv"><input type="checkbox" id="s-countinv">Count in runway</label>
-        </section>
-        <section>
-          <h3>Fixed bills</h3>
-          <div id="fx-list" style="display:grid;gap:6px"></div>
-          <button type="button" class="btn small" id="fx-add" style="justify-self:start">Add bill</button>
-          <h3 style="margin-top:10px">Alerts</h3>
-          <label for="s-warn">Warn at (%)<input id="s-warn" inputmode="numeric"></label>
-        </section>
-        <section>
-          <h3>Budgets</h3>
-          <div class="bgrid" id="bgrid"></div>
-          <p class="hint" id="bud-total"></p>
-        </section>
-      </div>
-      <div style="display:flex;gap:10px;align-items:center;margin-top:18px;flex-wrap:wrap">
-        <button class="btn primary" type="submit">Save settings</button>
-        <span class="small muted" id="set-status"></span>
-      </div>
-    </form>
-
-    <div class="sgrid" style="border-top:1px solid var(--line);padding-top:18px">
-      <section>
-        <h3>Import from sheet</h3>
-        <p class="hint">Copy columns G to R, header to the 31st, and paste.</p>
-        <label for="p-month">Month<input type="month" id="p-month"></label>
-        <label for="p-box">Paste<textarea id="p-box" placeholder="Paste here"></textarea></label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn small" id="p-preview">Check</button><button type="button" class="btn primary small" id="p-import" hidden>Import</button></div>
-        <p class="hint" id="p-result"></p>
-      </section>
-      <section>
-        <h3>Export to sheet</h3>
-        <p class="hint">Paste into cell H2.</p>
-        <button type="button" class="btn small" id="x-copy" style="justify-self:start">Copy month</button>
-        <textarea id="x-box" hidden readonly></textarea>
-        <p class="hint" id="x-result"></p>
-      </section>
-      <section>
-        <h3>Backup</h3>
-        <p class="hint">Copy on one device, paste on another.</p>
-        <button type="button" class="btn small" id="bk-copy" style="justify-self:start">Copy backup</button>
-        <label for="bk-box">Paste backup<textarea id="bk-box"></textarea></label>
-        <button type="button" class="btn small" id="bk-restore" style="justify-self:start">Restore</button>
-        <p class="hint" id="bk-result"></p>
-      </section>
-      <section>
-        <h3>PIN lock</h3>
-        <p class="hint" id="pin-state"></p>
-        <label for="pin-new">New PIN (4 to 8 digits)<input id="pin-new" type="password" inputmode="numeric" maxlength="8" autocomplete="off"></label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn small" id="pin-set">Set PIN</button><button type="button" class="btn small" id="pin-off" hidden>Remove PIN</button></div>
-      </section>
-    </div>
-  </details>
 </div>
 
 <div class="lock" id="lock" hidden>
@@ -1073,6 +1076,7 @@ function render(){
 $('#prev').onclick=()=>{view=mkAdd(view,-1);$('#p-month').value=view;render()};
 $('#next').onclick=()=>{view=mkAdd(view,1);$('#p-month').value=view;render()};
 $('#jump-log').onclick=()=>{$('#log-card').scrollIntoView({behavior:'smooth',block:'start'});setTimeout(()=>$('#f-amt').focus({preventScroll:true}),300)};
+$('#menu-btn').onclick=()=>{const d=$('#settings');d.hidden=!d.hidden;d.open=!d.hidden;$('#menu-btn').setAttribute('aria-expanded',String(!d.hidden));if(!d.hidden)d.scrollIntoView({behavior:'smooth',block:'start'})};
 const setBasis=b=>{basis=b;try{localStorage.setItem('runway-basis',b)}catch(e){}render()};
 $('#basis-budget').onclick=()=>setBasis('budget');$('#basis-recent').onclick=()=>setBasis('recent');
 setupForm();setupGoals();setupSettings();setupBackup();setupPin();
