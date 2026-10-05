@@ -465,6 +465,26 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
           <div style="display:flex;gap:8px"><button class="btn primary small" type="submit">Save month</button><button class="btn small" type="button" id="snap-cancel">Cancel</button></div>
         </form>
       </section>
+      <section class="card" aria-labelledby="hdb-h">
+        <div class="card-head"><h2 id="hdb-h">HDB plan</h2><button class="btn small" id="hdb-edit-btn">Edit</button></div>
+        <div id="hdb-view"></div>
+        <form class="form" id="hdb-form" hidden autocomplete="off" style="margin-top:12px">
+          <label for="h-date">Payment month<input type="month" id="h-date"></label>
+          <div class="row2">
+            <label for="h-price">Price ($)<input id="h-price" inputmode="decimal"></label>
+            <label for="h-paid">Already paid ($)<input id="h-paid" inputmode="decimal"></label>
+          </div>
+          <div class="row2">
+            <label for="h-loan">Loan or other funding ($)<input id="h-loan" inputmode="decimal"></label>
+            <label for="h-oa">CPF OA now ($)<input id="h-oa" inputmode="decimal"></label>
+          </div>
+          <div class="row2">
+            <label for="h-oam">OA added per month ($)<input id="h-oam" inputmode="decimal"></label>
+            <label for="h-rate">OA interest (% a year)<input id="h-rate" inputmode="decimal"></label>
+          </div>
+          <div style="display:flex;gap:8px"><button class="btn primary small" type="submit">Save</button><button class="btn small" type="button" id="hdb-cancel">Cancel</button></div>
+        </form>
+      </section>
     </div>
   </div>
 
@@ -684,6 +704,7 @@ function alertsFor(){
       if(r&&basis==='budget'&&r.fixed+r.variable>(p.fx+p.vb)*1.1) list.push(['warn','HABIT',`Last ${r.n} months averaged <b>${m0(r.fixed+r.variable)}</b>, budget is ${m0(p.fx+p.vb)}`]);
     }
   }
+  if(isCur){const hc=hdbCalc();if(hc&&hc.gap>0)list.push(['info','HDB',`<b>${m0(hc.gap)}</b> still to find by ${mkLabel(hc.date)}`+(hc.n>0?`, about ${m0(hc.per)} a month`:'')])}
   if(window.GMM_STATIC&&isCur){let last=0;try{last=+localStorage.getItem('gmm-last-backup')||0}catch(e){}if(Date.now()-last>30*DAY)list.push(['info','BACKUP','No backup in 30 days. Settings → Copy backup'])}
   if(!list.some(a=>a[0]==='bad'||a[0]==='warn')) list.unshift(['ok','CLEAR','All within budget']);
   return list;
@@ -1061,6 +1082,41 @@ function setupInvest(){
   });
 }
 
+/* ---------- hdb ---------- */
+function hdbCalc(){
+  const h=docs.hdb; if(!h||!num(h.price)) return null;
+  const date=h.date||'2029-06', [y,m]=date.split('-').map(Number);
+  const n=Math.max(0,(y-TODAY.getFullYear())*12+(m-1-TODAY.getMonth()));
+  const rate=(h.rate==null?2.5:num(h.rate))/1200;
+  let oa=num(h.oa); for(let k=0;k<n;k++) oa=oa*(1+rate)+num(h.oaMonthly);
+  const need=Math.max(0,num(h.price)-num(h.paid)-num(h.loan)-oa);
+  const have=(cashNow()||0)+invTotal(), gap=need-have;
+  return {h,date,n,oa,need,have,gap,per:n>0?gap/n:gap};
+}
+function renderHdb(){
+  const c=hdbCalc(), box=$('#hdb-view');
+  if(!c){box.innerHTML='<div class="empty">Tap Edit and enter the price, your CPF OA and the payment month.</div>';return}
+  const r=c.need>0?Math.min(1,Math.max(0,c.have/c.need)):1;
+  box.innerHTML=`<div class="msum"><div><div class="eyebrow">Cash needed by ${mkLabel(c.date)}</div><span class="num">${m0(c.need)}</span></div><div style="text-align:right"><div class="eyebrow">You have</div><span class="num" style="font-size:1.1rem">${m0(c.have)}</span></div></div>
+    <div class="bar" style="margin:10px 0 6px"><i style="width:${r*100}%;${c.gap<=0?'background:var(--ok)':''}"></i></div>
+    <div class="small">${c.gap>0?`<b style="color:var(--bad)">${m0(c.gap)}</b> still to find${c.n>0?`, about <b>${m0(c.per)}</b> a month for ${c.n} months`:''}`:`<b style="color:var(--ok)">Covered</b>, with ${m0(-c.gap)} to spare`}</div>
+    <div class="small muted" style="margin-top:8px">Price ${m0(num(c.h.price))} − paid ${m0(num(c.h.paid))} − loan or other ${m0(num(c.h.loan))} − CPF OA ${m0(c.oa)} by then. You have = cash + investments, not locked.</div>`;
+}
+function setupHdb(){
+  const f=$('#hdb-form');
+  $('#hdb-edit-btn').onclick=()=>{
+    const h=docs.hdb||{};
+    $('#h-date').value=h.date||'2029-06';$('#h-price').value=h.price??'';$('#h-paid').value=h.paid??'';$('#h-loan').value=h.loan??'';
+    $('#h-oa').value=h.oa??'';$('#h-oam').value=h.oaMonthly??'';$('#h-rate').value=h.rate??2.5;f.hidden=false;
+  };
+  $('#hdb-cancel').onclick=()=>{f.hidden=true};
+  f.addEventListener('submit',ev=>{
+    ev.preventDefault();
+    save('hdb',{date:$('#h-date').value||'2029-06',price:num($('#h-price').value),paid:num($('#h-paid').value),loan:num($('#h-loan').value),oa:num($('#h-oa').value),oaMonthly:num($('#h-oam').value),rate:num($('#h-rate').value)});
+    f.hidden=true;toast('HDB plan saved.');
+  });
+}
+
 /* ---------- history ---------- */
 function niceStep(x){const p=Math.pow(10,Math.floor(Math.log10(x)));const f=x/p;return (f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*p}
 function renderHistory(){
@@ -1180,7 +1236,7 @@ function setupBackup(){
     if(!d||d.app!=='grow-my-money'||!d.docs||typeof d.docs!=='object'){armed=false;$('#bk-restore').textContent='Restore';$('#bk-result').textContent='That is not a backup.';return}
     if(!armed){armed=true;$('#bk-restore').textContent='Replace my data';$('#bk-result').textContent='This overwrites the data here. Tap again to confirm.';return}
     armed=false;$('#bk-restore').textContent='Restore';
-    Object.keys(d.docs).forEach(id=>{if(/^(settings|history|goals|invest|m-\d{4}-\d{2})$/.test(id)&&d.docs[id]&&typeof d.docs[id]==='object')save(id,d.docs[id])});
+    Object.keys(d.docs).forEach(id=>{if(/^(settings|history|goals|invest|hdb|m-\d{4}-\d{2})$/.test(id)&&d.docs[id]&&typeof d.docs[id]==='object')save(id,d.docs[id])});
     try{localStorage.setItem('gmm-last-backup',String(Date.now()))}catch(e){}
     settingsDirty=false;fillSettings(true);$('#bk-box').value='';$('#bk-result').textContent='Restored.';
   };
@@ -1247,7 +1303,7 @@ function render(){
   $('#mlabel').textContent=mkLabel(view);
   $('#next').disabled=view>=mkAdd(CUR,1);
   if(mode==='loading') return;
-  renderAlerts();renderRunway();renderMonth();renderEntries();renderGoals();renderInvest();renderGrowth();renderHistory();syncCatSelect();updateHint();
+  renderAlerts();renderRunway();renderMonth();renderEntries();renderGoals();renderInvest();renderGrowth();renderHdb();renderHistory();syncCatSelect();updateHint();
   if(!$('#settings').open) fillSettings(true); else fillSettings(false);
 }
 $('#prev').onclick=()=>{view=mkAdd(view,-1);$('#p-month').value=view;render()};
@@ -1256,7 +1312,7 @@ $('#jump-log').onclick=()=>{$('#log-card').scrollIntoView({behavior:'smooth',blo
 $('#menu-btn').onclick=()=>{const d=$('#settings');d.hidden=!d.hidden;d.open=!d.hidden;$('#menu-btn').setAttribute('aria-expanded',String(!d.hidden));if(!d.hidden)d.scrollIntoView({behavior:'smooth',block:'start'})};
 const setBasis=b=>{basis=b;try{localStorage.setItem('runway-basis',b)}catch(e){}render()};
 $('#basis-budget').onclick=()=>setBasis('budget');$('#basis-recent').onclick=()=>setBasis('recent');
-setupForm();setupGoals();setupSettings();setupBackup();setupPin();setupInvest();
+setupForm();setupGoals();setupSettings();setupBackup();setupPin();setupInvest();setupHdb();
 render();
 initStore();
 })();
