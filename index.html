@@ -280,7 +280,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
           <p class="hint">Set these once. Do not change them when you pay the card or get paid back.</p>
           <label for="s-floor">Cash floor<input id="s-floor" inputmode="decimal"></label>
           <label for="s-income">Monthly income (added automatically)<input id="s-income" inputmode="decimal"></label>
-          <label for="s-inv">Investments<input id="s-inv" inputmode="decimal"></label>
+          <label for="s-inv">Investments (used only if no platforms are listed)<input id="s-inv" inputmode="decimal"></label>
           <label class="check" for="s-countinv"><input type="checkbox" id="s-countinv">Count in runway</label>
         </section>
         <section>
@@ -420,6 +420,22 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
         <ul class="goals" id="goals"></ul>
         
       </section>
+      <section class="card" aria-labelledby="inv-h">
+        <div class="card-head"><h2 id="inv-h">Investments</h2><button class="btn small" id="inv-add-btn">Add platform</button></div>
+        <div class="msum" style="margin-bottom:12px">
+          <div><div class="eyebrow">Total value</div><span class="num" id="inv-total">—</span></div>
+          <div style="text-align:right"><div class="eyebrow">Profit / loss</div><span class="num" style="font-size:1.1rem" id="inv-pl">—</span></div>
+        </div>
+        <form class="form" id="inv-form" hidden style="margin-bottom:16px" autocomplete="off">
+          <label for="i-name">Platform<input id="i-name" placeholder="e.g. Robo, Brokerage, Crypto" required></label>
+          <div class="row2">
+            <label for="i-in">Put in ($)<input id="i-in" inputmode="decimal"></label>
+            <label for="i-val">Value now ($)<input id="i-val" inputmode="decimal" required></label>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn primary small" type="submit">Save</button><button class="btn small" type="button" id="inv-cancel">Cancel</button><button class="btn link small" type="button" id="inv-del" hidden>Delete</button></div>
+        </form>
+        <ul class="entries" id="inv-list"></ul>
+      </section>
     </div>
   </div>
 
@@ -541,6 +557,8 @@ const isHidden=k=>!!(S()&&S().hidden&&S().hidden.includes(k)&&!num(S().budgets&&
 const effVar=mk=>CATS.reduce((a,c)=>a+budgetOf(c.k,mk),0);
 const histMonth=mk=>((docs.history&&docs.history.months)||[]).find(m=>m.mk===mk);
 const goalsList=()=>(docs.goals&&docs.goals.items)||[];
+const invList=()=>(docs.invest&&docs.invest.items)||[];
+const invTotal=()=>invList().length?invList().reduce((a,i)=>a+num(i.value),0):num(S()&&S().investments);
 const goalsSaved=()=>goalsList().reduce((a,g)=>a+num(g.saved),0);
 
 function monthData(mk){
@@ -585,7 +603,7 @@ function project(b){
   const income=num(s.monthlyIncome);
   const burn=fx+vb-income;
   const spendable=now-remain-num(s.floor)-goalsSaved();
-  const inv=num(s.investments), countInv=!!s.countInvest;
+  const inv=invTotal(), countInv=!!s.countInvest;
   const pool=spendable+(countInv?inv:0);
   const eom=new Date(TODAY.getFullYear(),TODAY.getMonth()+1,0,12);
   const fracLeft=(eom-TODAY)/DAY/MLEN;
@@ -891,6 +909,50 @@ function setupGoals(){
   });
 }
 
+/* ---------- investments ---------- */
+let invEditing=null;
+function renderInvest(){
+  const items=invList(), ul=$('#inv-list');
+  const tv=invTotal(), tin=items.reduce((a,i)=>a+num(i.invested),0), pl=tv-tin, el=$('#inv-pl');
+  $('#inv-total').textContent=m0(tv);
+  const has=items.length&&tin;
+  el.textContent=has?(pl>=0?'+':'')+m0(pl)+' ('+(pl/tin*100).toFixed(1)+'%)':'—';
+  el.style.color=has?(pl>=0?'var(--ok)':'var(--bad)'):'';
+  if(!items.length){ul.innerHTML='<li class="empty">Add each platform with what you put in and its value now.</li>';return}
+  ul.innerHTML='';
+  items.forEach(i=>{
+    const li=document.createElement('li');li.className='entry';li.style.gridTemplateColumns='minmax(0,1fr) auto auto';
+    const g=num(i.value)-num(i.invested);
+    li.innerHTML=`<span class="note"></span><span class="num small" style="color:${g>=0?'var(--ok)':'var(--bad)'}">${num(i.invested)?(g>=0?'+':'')+m0(g):''}</span><span class="num">${m0(num(i.value))}</span>`;
+    li.querySelector('.note').textContent=i.name+(i.upd?' · '+i.upd:'');
+    li.onclick=()=>openInv(i);
+    ul.appendChild(li);
+  });
+}
+function openInv(i){
+  invEditing=i?i.id:null;
+  $('#i-name').value=i?i.name:'';$('#i-in').value=i?(i.invested??''):'';$('#i-val').value=i?(i.value??''):'';
+  $('#inv-del').hidden=!i;$('#inv-form').hidden=false;$('#i-'+(i?'val':'name')).focus();
+}
+function setupInvest(){
+  const f=$('#inv-form');
+  $('#inv-add-btn').onclick=()=>openInv(null);
+  $('#inv-cancel').onclick=()=>{f.hidden=true;invEditing=null};
+  $('#inv-del').onclick=()=>{
+    const before=clone(docs.invest), items=(clone(docs.invest).items||[]).filter(x=>x.id!==invEditing);
+    save('invest',{items});f.hidden=true;invEditing=null;toast('Platform deleted.','Undo',()=>save('invest',before));
+  };
+  f.addEventListener('submit',ev=>{
+    ev.preventDefault();
+    const name=$('#i-name').value.trim().slice(0,60);
+    if(!name){toast('Give the platform a name.');return}
+    const it={id:invEditing||uid(),name,invested:num($('#i-in').value),value:num($('#i-val').value),upd:TODAY.getDate()+' '+MON[TODAY.getMonth()]};
+    const items=clone(docs.invest).items||[], k=items.findIndex(x=>x.id===it.id);
+    if(k>=0) items[k]=it; else items.push(it);
+    save('invest',{items});f.hidden=true;invEditing=null;toast('Saved '+name+'.');
+  });
+}
+
 /* ---------- history ---------- */
 function niceStep(x){const p=Math.pow(10,Math.floor(Math.log10(x)));const f=x/p;return (f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*p}
 function renderHistory(){
@@ -1010,7 +1072,7 @@ function setupBackup(){
     if(!d||d.app!=='grow-my-money'||!d.docs||typeof d.docs!=='object'){armed=false;$('#bk-restore').textContent='Restore';$('#bk-result').textContent='That is not a backup.';return}
     if(!armed){armed=true;$('#bk-restore').textContent='Replace my data';$('#bk-result').textContent='This overwrites the data here. Tap again to confirm.';return}
     armed=false;$('#bk-restore').textContent='Restore';
-    Object.keys(d.docs).forEach(id=>{if(/^(settings|history|goals|m-\d{4}-\d{2})$/.test(id)&&d.docs[id]&&typeof d.docs[id]==='object')save(id,d.docs[id])});
+    Object.keys(d.docs).forEach(id=>{if(/^(settings|history|goals|invest|m-\d{4}-\d{2})$/.test(id)&&d.docs[id]&&typeof d.docs[id]==='object')save(id,d.docs[id])});
     try{localStorage.setItem('gmm-last-backup',String(Date.now()))}catch(e){}
     settingsDirty=false;fillSettings(true);$('#bk-box').value='';$('#bk-result').textContent='Restored.';
   };
@@ -1077,7 +1139,7 @@ function render(){
   $('#mlabel').textContent=mkLabel(view);
   $('#next').disabled=view>=mkAdd(CUR,1);
   if(mode==='loading') return;
-  renderAlerts();renderRunway();renderMonth();renderEntries();renderGoals();renderHistory();syncCatSelect();updateHint();
+  renderAlerts();renderRunway();renderMonth();renderEntries();renderGoals();renderInvest();renderHistory();syncCatSelect();updateHint();
   if(!$('#settings').open) fillSettings(true); else fillSettings(false);
 }
 $('#prev').onclick=()=>{view=mkAdd(view,-1);$('#p-month').value=view;render()};
@@ -1086,7 +1148,7 @@ $('#jump-log').onclick=()=>{$('#log-card').scrollIntoView({behavior:'smooth',blo
 $('#menu-btn').onclick=()=>{const d=$('#settings');d.hidden=!d.hidden;d.open=!d.hidden;$('#menu-btn').setAttribute('aria-expanded',String(!d.hidden));if(!d.hidden)d.scrollIntoView({behavior:'smooth',block:'start'})};
 const setBasis=b=>{basis=b;try{localStorage.setItem('runway-basis',b)}catch(e){}render()};
 $('#basis-budget').onclick=()=>setBasis('budget');$('#basis-recent').onclick=()=>setBasis('recent');
-setupForm();setupGoals();setupSettings();setupBackup();setupPin();
+setupForm();setupGoals();setupSettings();setupBackup();setupPin();setupInvest();
 render();
 initStore();
 })();
