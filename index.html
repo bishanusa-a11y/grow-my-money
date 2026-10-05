@@ -276,6 +276,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
           </div>
           <label for="s-card">Card owed on start date (full bill)<input id="s-card" inputmode="decimal"></label>
           <label for="s-owed">Owed to me on start date<input id="s-owed" inputmode="decimal"></label>
+          <p class="hint" id="card-split"></p>
           <p class="hint">Set these once. Do not change them when you pay the card or get paid back.</p>
           <label for="s-floor">Cash floor<input id="s-floor" inputmode="decimal"></label>
           <label for="s-income">Monthly income (added automatically)<input id="s-income" inputmode="decimal"></label>
@@ -682,6 +683,8 @@ function renderRunway(){
     stats.push(['Cash + investments',m0(p.now+p.inv),'']);
     stats.push(['Investments',m0(p.inv)+(p.countInv?' (counted)':''),'']);
   }
+  const cardFull=num(s.unpaidCard), owed=num(s.owedToMe);
+  if(cardFull||owed){stats.push(['Card bill (full)',m0(cardFull),'']);stats.push(['Owed to me / my share',m0(owed)+' / '+m0(cardFull-owed),''])}
   $('#r-stats').innerHTML=stats.map(([t,v,c])=>`<div><dt>${t}</dt><dd class="${c}">${v}</dd></div>`).join('');
   $('#ret-note').textContent=p.target&&p.needMonths>0?`${p.needMonths.toFixed(1)} months`:'';
   renderStrip(p);
@@ -942,6 +945,8 @@ function renderFx(){
   });
 }
 function budTotal(){
+  const cf=num(($('#s-card')||{}).value), ow=num(($('#s-owed')||{}).value);
+  if($('#card-split')) $('#card-split').textContent=cf||ow?`Full bill ${m2(cf)} = owed to me ${m2(ow)} + my share ${m2(cf-ow)}`:'';
   const v=CATS.reduce((a,c)=>a+num(($('#b-'+c.k)||{}).value),0), f=(fxDraft||[]).reduce((a,x)=>a+num(x.amt),0);
   $('#bud-total').textContent=`${m0(v)} + ${m0(f)} fixed = ${m0(v+f)}`+(S()&&S().rollover&&S().rollover.length?'':'');
 }
