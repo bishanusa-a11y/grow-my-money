@@ -704,15 +704,17 @@ function renderRunway(){
     $('#r-stats').innerHTML='';$('#strip').innerHTML='';$('#ret-note').textContent='';return;
   }
   const ml=p.monthsLeft;
-  $('#r-months').textContent=ml===Infinity?'+'+m0(-p.burn):ml.toFixed(1);
-  $('#r-unit').textContent=ml===Infinity?'/month':(Math.abs(ml-1)<.05?'month':'months');
+  const far=ml!==Infinity&&ml>60;
+  $('#r-months').textContent=ml===Infinity?'+'+m0(-p.burn):far?'5+':ml.toFixed(1);
+  $('#r-unit').textContent=ml===Infinity?'/month':far?'years':(Math.abs(ml-1)<.05?'month':'months');
   const basisTxt=p.basisUsed==='recent'?`your recent pace of ${m0(p.burn+p.income)}/month`:`your budget of ${m0(p.burn+p.income)}/month`;
   let sent;
   if(ml===Infinity) sent='Growing. Income covers spending.';
   else if(p.pool<0) sent='Cash is below your floor.';
-  else sent=`Cash lasts until <b>${fmtDate(p.endDate)}</b>.`;
+  else if(far) sent=`You spend ${m0(p.burn)} a month more than you earn. At that rate cash lasts over 5 years, if you keep exactly to budget.`;
+  else sent=`You spend ${m0(p.burn)} a month more than you earn. Cash lasts until about <b>${fmtMonthYr(p.endDate)}</b>.`;
   if(basis==='recent'&&p.basisUsed!=='recent') sent+='';
-  if(p.invEndDate&&p.inv>0) sent+=` With investments: ${fmtMonthYr(p.invEndDate)}.`;
+  if(!far&&p.invEndDate&&p.inv>0) sent+=` With investments: ${fmtMonthYr(p.invEndDate)}.`;
   $('#r-sentence').innerHTML=sent;
   const stats=[
     ['Cash',m0(p.now),''],
