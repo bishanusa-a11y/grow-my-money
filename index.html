@@ -280,6 +280,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
       <div class="sgrid">
         <section>
           <h3>Cash</h3>
+          <label for="s-cur">Currency symbol (e.g. $, S$, RM, €)<input id="s-cur" maxlength="4"></label>
           <div class="row2">
             <label for="s-cash">Starting cash<input id="s-cash" inputmode="decimal"></label>
             <label for="s-cash-month">Month<input type="month" id="s-cash-month"></label>
@@ -405,7 +406,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
           </div>
         </div>
         <form class="form" id="log-form" autocomplete="off">
-          <label for="f-amt">Amount ($)<input id="f-amt" class="amount-in" inputmode="decimal" placeholder="0.00" required></label>
+          <label for="f-amt">Amount<input id="f-amt" class="amount-in" inputmode="decimal" placeholder="0.00" required></label>
           <div class="row2">
             <label for="f-cat" id="f-cat-l">Category<select id="f-cat"></select></label>
             <label for="f-date">Date<input type="date" id="f-date" required></label>
@@ -422,7 +423,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
         <form class="form" id="goal-form" hidden style="margin-bottom:16px">
           <label for="g-name">Goal<input id="g-name" placeholder="e.g. Japan trip in March" required></label>
           <div class="row2">
-            <label for="g-target">Target ($)<input id="g-target" inputmode="decimal" required></label>
+            <label for="g-target">Target<input id="g-target" inputmode="decimal" required></label>
             <label for="g-by">By<input type="month" id="g-by"></label>
           </div>
           <div style="display:flex;gap:8px"><button class="btn primary small" type="submit">Save goal</button><button class="btn small" type="button" id="goal-cancel">Cancel</button></div>
@@ -440,8 +441,8 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
         <form class="form" id="inv-form" hidden style="margin-bottom:16px" autocomplete="off">
           <label for="i-name">Platform<input id="i-name" placeholder="e.g. Robo, Brokerage, Crypto" required></label>
           <div class="row2">
-            <label for="i-in">Put in ($)<input id="i-in" inputmode="decimal"></label>
-            <label for="i-val">Value now ($)<input id="i-val" inputmode="decimal" required></label>
+            <label for="i-in">Put in<input id="i-in" inputmode="decimal"></label>
+            <label for="i-val">Value now<input id="i-val" inputmode="decimal" required></label>
           </div>
           <label for="i-month">Record for month<input type="month" id="i-month"></label>
           <label class="check" for="i-lock"><input type="checkbox" id="i-lock">Locked, such as CPF (not counted as spendable)</label>
@@ -454,13 +455,13 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
         <form class="form" id="snap-form" hidden style="margin-top:12px" autocomplete="off">
           <label for="sn-month">Month<input type="month" id="sn-month" required></label>
           <div class="row2">
-            <label for="sn-in">Investments put in ($)<input id="sn-in" inputmode="decimal"></label>
-            <label for="sn-val">Investments value ($)<input id="sn-val" inputmode="decimal" required></label>
+            <label for="sn-in">Investments put in<input id="sn-in" inputmode="decimal"></label>
+            <label for="sn-val">Investments value<input id="sn-val" inputmode="decimal" required></label>
           </div>
-          <label for="sn-cash">Cash at month end ($)<input id="sn-cash" inputmode="decimal"></label>
+          <label for="sn-cash">Cash at month end<input id="sn-cash" inputmode="decimal"></label>
           <div class="row2">
-            <label for="sn-lin">Locked put in ($)<input id="sn-lin" inputmode="decimal"></label>
-            <label for="sn-lval">Locked value ($)<input id="sn-lval" inputmode="decimal"></label>
+            <label for="sn-lin">Locked put in<input id="sn-lin" inputmode="decimal"></label>
+            <label for="sn-lval">Locked value<input id="sn-lval" inputmode="decimal"></label>
           </div>
           <div style="display:flex;gap:8px"><button class="btn primary small" type="submit">Save month</button><button class="btn small" type="button" id="snap-cancel">Cancel</button></div>
         </form>
@@ -471,15 +472,15 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
         <form class="form" id="hdb-form" hidden autocomplete="off" style="margin-top:12px">
           <label for="h-date">Payment month<input type="month" id="h-date"></label>
           <div class="row2">
-            <label for="h-price">Price ($)<input id="h-price" inputmode="decimal"></label>
-            <label for="h-paid">Already paid ($)<input id="h-paid" inputmode="decimal"></label>
+            <label for="h-price">Price<input id="h-price" inputmode="decimal"></label>
+            <label for="h-paid">Already paid<input id="h-paid" inputmode="decimal"></label>
           </div>
           <div class="row2">
-            <label for="h-loan">Loan or other funding ($)<input id="h-loan" inputmode="decimal"></label>
-            <label for="h-oa">CPF OA now ($)<input id="h-oa" inputmode="decimal"></label>
+            <label for="h-loan">Loan or other funding<input id="h-loan" inputmode="decimal"></label>
+            <label for="h-oa">CPF OA now<input id="h-oa" inputmode="decimal"></label>
           </div>
           <div class="row2">
-            <label for="h-oam">OA added per month ($)<input id="h-oam" inputmode="decimal"></label>
+            <label for="h-oam">OA added per month<input id="h-oam" inputmode="decimal"></label>
             <label for="h-rate">OA interest (% a year)<input id="h-rate" inputmode="decimal"></label>
           </div>
           <div style="display:flex;gap:8px"><button class="btn primary small" type="submit">Save</button><button class="btn small" type="button" id="hdb-cancel">Cancel</button></div>
@@ -542,7 +543,8 @@ const mkOf=d=>d.getFullYear()+'-'+pad(d.getMonth()+1);
 const mkLabel=mk=>{const [y,m]=mk.split('-');return MON[m-1]+' '+y};
 const mkAdd=(mk,n)=>{let [y,m]=mk.split('-').map(Number);m+=n;while(m>12){m-=12;y++}while(m<1){m+=12;y--}return y+'-'+pad(m)};
 const daysIn=mk=>{const [y,m]=mk.split('-').map(Number);return new Date(y,m,0).getDate()};
-const money=(n,dp)=>{const v=Math.abs(n);return (n<0?'−':'')+'$'+v.toLocaleString('en-SG',{minimumFractionDigits:dp||0,maximumFractionDigits:dp||0})};
+const SYM=()=>(docs.settings&&docs.settings.currency)||'$';
+const money=(n,dp)=>{const v=Math.abs(n);return (n<0?'−':'')+SYM()+v.toLocaleString('en-SG',{minimumFractionDigits:dp||0,maximumFractionDigits:dp||0})};
 const m0=n=>money(Math.round(n));
 const m2=n=>money(n,2);
 const num=v=>{if(v==null)return 0;let s=String(v).trim();if(!s)return 0;let neg=/^\(.*\)$/.test(s)||/^[-−]/.test(s);s=s.replace(/[^0-9.]/g,'');const n=parseFloat(s);return isNaN(n)?0:(neg?-n:n)};
@@ -1152,7 +1154,7 @@ function renderHistory(){
 function fillSettings(force){
   if(settingsDirty&&!force) return;
   const s=S()||{};
-  $('#s-cash').value=s.openingCash??'';$('#s-cash-month').value=s.openingMonth||CUR;
+  $('#s-cur').value=s.currency||'$';$('#s-cash').value=s.openingCash??'';$('#s-cash-month').value=s.openingMonth||CUR;
   $('#s-card').value=s.unpaidCard??'';$('#s-owed').value=s.owedToMe??'';$('#s-floor').value=s.floor??'';$('#s-income').value=s.monthlyIncome??'';
   $('#s-inv').value=s.investments??'';$('#s-countinv').checked=!!s.countInvest;$('#s-warn').value=s.warnAt??80;
   fxDraft=clone({f:s.fixed||[]}).f;renderFx();
@@ -1186,7 +1188,7 @@ function setupSettings(){
     const prev=S()||{};
     const budgets={};CATS.forEach(c=>budgets[c.k]=num($('#b-'+c.k).value));
     const s=Object.assign({},clone(prev),{
-      openingCash:num($('#s-cash').value),openingMonth:$('#s-cash-month').value||CUR,
+      currency:($('#s-cur').value.trim()||'$').slice(0,4),openingCash:num($('#s-cash').value),openingMonth:$('#s-cash-month').value||CUR,
       unpaidCard:num($('#s-card').value),owedToMe:num($('#s-owed').value),floor:num($('#s-floor').value),monthlyIncome:num($('#s-income').value),
       investments:num($('#s-inv').value),countInvest:$('#s-countinv').checked,
       warnAt:Math.min(100,Math.max(1,num($('#s-warn').value)||80)),
