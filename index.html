@@ -36,7 +36,7 @@ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist().cat
   color-scheme:dark;
 }
 *{box-sizing:border-box}
-body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;padding-inline:16px;padding-block:20px 56px}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;padding-inline:16px;padding-block:20px 96px}
 .wrap{max-width:1180px;margin:0 auto;display:grid;gap:18px}
 h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance;letter-spacing:-.01em}
 h2{font-size:1.15rem;font-weight:700}
@@ -57,7 +57,11 @@ label{display:grid;gap:4px;font-size:.85rem;color:var(--muted);min-width:0}
 .card-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
 
 /* header */
-.top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;position:relative}
+.menu{position:absolute;right:0;top:100%;margin-top:6px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:6px;display:grid;min-width:210px;z-index:30;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.menu button{text-align:left;border:0;background:none;padding:9px 12px;border-radius:7px;font-weight:500;font-size:.95rem}
+.menu button:hover{background:var(--sunk);color:var(--accent)}
+.menu .sep{border-top:1px solid var(--line);margin:4px 0}
 .brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
 .brand h1{font-size:1.9rem;font-weight:700;color:var(--accent);display:inline-flex;align-items:center;gap:10px}
 .logo{flex:none}
@@ -113,9 +117,11 @@ label{display:grid;gap:4px;font-size:.85rem;color:var(--muted);min-width:0}
 .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.78rem;color:var(--hero-muted);margin-top:10px}
 .legend i{display:inline-block;width:12px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
 
-/* main grid */
-.cols{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:18px;align-items:start}
-.stack{display:grid;gap:18px;min-width:0}
+/* tabs */
+.tab{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));align-items:start}
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:15;display:flex;gap:4px;background:var(--surface);border-top:1px solid var(--line);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px))}
+.tabbar button{flex:1;border:0;background:none;color:var(--muted);font-weight:600;font-size:.95rem;padding:10px 4px;border-radius:8px}
+.tabbar button[aria-pressed="true"]{color:var(--accent);background:var(--accent-soft)}
 
 /* month summary */
 .msum{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline}
@@ -227,13 +233,11 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
 .lockbox input{text-align:center;font-family:var(--f-mono);font-size:1.4rem;letter-spacing:.3em}
 
 /* toast */
-.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:10px;display:flex;gap:14px;align-items:center;max-width:min(560px,calc(100vw - 32px));font-size:.9rem;z-index:20;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+.toast{position:fixed;left:50%;bottom:calc(72px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:10px;display:flex;gap:14px;align-items:center;max-width:min(560px,calc(100vw - 32px));font-size:.9rem;z-index:20;box-shadow:0 8px 24px rgba(0,0,0,.2)}
 .toast button{border:0;background:none;color:inherit;font-weight:700;text-decoration:underline}
 
 @media (max-width:860px){
-  .cols,.hero-main{grid-template-columns:minmax(0,1fr)}
-  .stack{display:contents}
-  #log-card{order:-1}
+  .hero-main{grid-template-columns:minmax(0,1fr)}
 }
 @media (max-width:560px){
   html{font-size:120%}
@@ -270,7 +274,25 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
       <span class="lbl" id="mlabel">—</span>
       <button class="iconbtn" id="next" aria-label="Next month">›</button>
       <button class="btn primary" id="jump-log" style="margin-left:8px">Log spending</button>
-      <button class="iconbtn" id="menu-btn" aria-label="Settings" aria-expanded="false" title="Settings">⋮</button>
+      <button class="iconbtn" id="menu-btn" aria-label="Menu" aria-expanded="false" aria-haspopup="true" title="Menu">⋮</button>
+      <div class="menu" id="menu" hidden role="menu">
+        <button type="button" data-go="home|alerts-h">Alerts</button>
+        <button type="button" data-go="home|runway-h">Runway</button>
+        <button type="button" data-go="home|month-h">This month</button>
+        <div class="sep"></div>
+        <button type="button" data-go="log|log-h">Log spending</button>
+        <button type="button" data-go="log|entries-h">Spending log</button>
+        <div class="sep"></div>
+        <button type="button" data-go="plan|goals-h">Goals</button>
+        <button type="button" data-go="plan|inv-h">Investments</button>
+        <button type="button" data-go="plan|hdb-h">HDB plan</button>
+        <div class="sep"></div>
+        <button type="button" data-go="history|hist-h">Last 12 months</button>
+        <div class="sep"></div>
+        <button type="button" data-go="settings|s-cur">Settings</button>
+        <button type="button" data-go="settings|bk-copy">Backup</button>
+        <button type="button" data-go="settings|pin-new">PIN lock</button>
+      </div>
     </div>
   </header>
   <div id="store-banner" class="banner" hidden></div>
@@ -346,12 +368,12 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
     </div>
   </details>
 
-  <section class="card" aria-labelledby="alerts-h">
+  <div class="tab" id="tab-home">
+  <section style="grid-column:1/-1" class="card" aria-labelledby="alerts-h">
     <div class="card-head"><h2 id="alerts-h">Alerts</h2><span class="small muted" id="alerts-sub"></span></div>
     <ul class="alerts" id="alerts"><li class="alert"><span class="pill info">LOADING</span><span>Loading your numbers…</span></li></ul>
   </section>
-
-  <section class="hero" aria-labelledby="runway-h">
+  <section style="grid-column:1/-1" class="hero" aria-labelledby="runway-h">
     <div class="hero-main">
       <div>
         <div class="eyebrow" id="runway-h">Runway</div>
@@ -377,10 +399,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
       </div>
     </div>
   </section>
-
-  <div class="cols">
-    <div class="stack">
-      <section class="card" aria-labelledby="month-h">
+  <section style="grid-column:1/-1" class="card" aria-labelledby="month-h">
         <div class="card-head"><h2 id="month-h">This month</h2><span class="small muted" id="month-src"></span></div>
         <div class="msum">
           <div><div class="eyebrow">Spent</div><span class="num" id="m-spent">—</span> <span class="muted" id="m-of"></span></div>
@@ -390,15 +409,9 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
         <div class="small muted" id="m-pace-note"></div>
         <ul class="cats" id="cats"></ul>
       </section>
-
-      <section class="card" aria-labelledby="entries-h">
-        <div class="card-head"><h2 id="entries-h">Spending log</h2><span class="small muted" id="entries-count"></span></div>
-        <ul class="entries" id="entries"></ul>
-      </section>
-    </div>
-
-    <div class="stack">
-      <section class="card" aria-labelledby="log-h" id="log-card">
+  </div>
+  <div class="tab" id="tab-log" hidden>
+  <section class="card" aria-labelledby="log-h" id="log-card">
         <div class="card-head"><h2 id="log-h">Log spending</h2>
           <div class="typeseg" role="group" aria-label="Entry type">
             <button type="button" id="t-exp" aria-pressed="true">Spent</button>
@@ -417,8 +430,13 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
           <p class="hint" id="f-hint"></p>
         </form>
       </section>
-
-      <section class="card" aria-labelledby="goals-h">
+  <section class="card" aria-labelledby="entries-h">
+        <div class="card-head"><h2 id="entries-h">Spending log</h2><span class="small muted" id="entries-count"></span></div>
+        <ul class="entries" id="entries"></ul>
+      </section>
+  </div>
+  <div class="tab" id="tab-plan" hidden>
+  <section class="card" aria-labelledby="goals-h">
         <div class="card-head"><h2 id="goals-h">Goals</h2><button class="btn small" id="goal-add-btn">Add goal</button></div>
         <form class="form" id="goal-form" hidden style="margin-bottom:16px">
           <label for="g-name">Goal<input id="g-name" placeholder="e.g. Japan trip in March" required></label>
@@ -431,7 +449,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
         <ul class="goals" id="goals"></ul>
         
       </section>
-      <section class="card" aria-labelledby="inv-h">
+  <section class="card" aria-labelledby="inv-h">
         <div class="card-head"><h2 id="inv-h">Investments</h2><button class="btn small" id="inv-add-btn">Add platform</button></div>
         <div class="msum" style="margin-bottom:12px">
           <div><div class="eyebrow">Total value</div><span class="num" id="inv-total">—</span></div>
@@ -466,7 +484,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
           <div style="display:flex;gap:8px"><button class="btn primary small" type="submit">Save month</button><button class="btn small" type="button" id="snap-cancel">Cancel</button></div>
         </form>
       </section>
-      <section class="card" aria-labelledby="hdb-h">
+  <section class="card" aria-labelledby="hdb-h">
         <div class="card-head"><h2 id="hdb-h">HDB plan</h2><button class="btn small" id="hdb-edit-btn">Edit</button></div>
         <div id="hdb-view"></div>
         <form class="form" id="hdb-form" hidden autocomplete="off" style="margin-top:12px">
@@ -486,10 +504,9 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
           <div style="display:flex;gap:8px"><button class="btn primary small" type="submit">Save</button><button class="btn small" type="button" id="hdb-cancel">Cancel</button></div>
         </form>
       </section>
-    </div>
   </div>
-
-  <section class="card" aria-labelledby="hist-h">
+  <div class="tab" id="tab-history" hidden>
+  <section style="grid-column:1/-1" class="card" aria-labelledby="hist-h">
     <div class="card-head"><h2 id="hist-h">Last 12 months</h2>
       <div class="hleg">
         <span><i style="background:var(--fixed)"></i>Fixed</span>
@@ -503,6 +520,13 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
     <div class="xax" id="xax"></div>
     <div class="detail" id="h-detail">Tap a month.</div>
   </section>
+  </div>
+  <nav class="tabbar" aria-label="Sections">
+    <button type="button" data-tab="home" aria-pressed="true">Home</button>
+    <button type="button" data-tab="log" aria-pressed="false">Log</button>
+    <button type="button" data-tab="plan" aria-pressed="false">Plan</button>
+    <button type="button" data-tab="history" aria-pressed="false">History</button>
+  </nav>
 
 </div>
 
@@ -879,7 +903,7 @@ function startEdit(mk,e){
   syncCatSelect();
   $('#f-amt').value=e.amt;if(e.cat)$('#f-cat').value=e.cat;$('#f-date').value=e.date;$('#f-note').value=e.note||'';
   editing={mk,id:e.id};$('#f-submit').textContent='Save changes';$('#f-cancel').hidden=false;
-  $('#log-card').scrollIntoView({behavior:'smooth',block:'start'});updateHint();
+  showTab('log');$('#log-card').scrollIntoView({behavior:'smooth',block:'start'});updateHint();
 }
 let catSig='';
 function syncCatSelect(){
@@ -1310,8 +1334,23 @@ function render(){
 }
 $('#prev').onclick=()=>{view=mkAdd(view,-1);$('#p-month').value=view;render()};
 $('#next').onclick=()=>{view=mkAdd(view,1);$('#p-month').value=view;render()};
-$('#jump-log').onclick=()=>{$('#log-card').scrollIntoView({behavior:'smooth',block:'start'});setTimeout(()=>$('#f-amt').focus({preventScroll:true}),300)};
-$('#menu-btn').onclick=()=>{const d=$('#settings');d.hidden=!d.hidden;d.open=!d.hidden;$('#menu-btn').setAttribute('aria-expanded',String(!d.hidden));if(!d.hidden)d.scrollIntoView({behavior:'smooth',block:'start'})};
+let tab='home';try{tab=localStorage.getItem('gmm-tab')||'home'}catch(e){}
+function showTab(t){tab=t;document.querySelectorAll('.tab').forEach(el=>el.hidden=el.id!=='tab-'+t);document.querySelectorAll('.tabbar button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tab===t)));try{localStorage.setItem('gmm-tab',t)}catch(e){}window.scrollTo(0,0)}
+document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+showTab(['home','log','plan','history'].includes(tab)?tab:'home');
+$('#jump-log').onclick=()=>{showTab('log');$('#log-card').scrollIntoView({behavior:'smooth',block:'start'});setTimeout(()=>$('#f-amt').focus({preventScroll:true}),300)};
+const menu=$('#menu');
+const setMenu=o=>{menu.hidden=!o;$('#menu-btn').setAttribute('aria-expanded',String(o))};
+$('#menu-btn').onclick=ev=>{ev.stopPropagation();setMenu(menu.hidden)};
+document.addEventListener('click',ev=>{if(!menu.hidden&&!menu.contains(ev.target))setMenu(false)});
+document.addEventListener('keydown',ev=>{if(ev.key==='Escape')setMenu(false)});
+menu.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+  const [t,id]=b.dataset.go.split('|'); setMenu(false);
+  const d=$('#settings');
+  if(t==='settings'){d.hidden=false;d.open=true}
+  else showTab(t);
+  const el=document.getElementById(id); if(el) setTimeout(()=>{(el.closest('section,.hero,details')||el).scrollIntoView({behavior:'smooth',block:'start'});if(/INPUT|TEXTAREA/.test(el.tagName)&&t==='settings')el.focus({preventScroll:true})},50);
+});
 const setBasis=b=>{basis=b;try{localStorage.setItem('runway-basis',b)}catch(e){}render()};
 $('#basis-budget').onclick=()=>setBasis('budget');$('#basis-recent').onclick=()=>setBasis('recent');
 setupForm();setupGoals();setupSettings();setupBackup();setupPin();setupInvest();setupHdb();
