@@ -201,6 +201,7 @@ label{display:grid;gap:4px;font-size:.85rem;color:var(--muted);min-width:0}
 .hleg i{display:inline-block;width:12px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
 
 /* settings */
+details.card{position:relative}
 details.card>summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px}
 details.card>summary::-webkit-details-marker{display:none}
 details.card>summary::after{content:"+";font-family:var(--f-mono);font-size:1.2rem;color:var(--muted)}
@@ -298,6 +299,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
   <div id="store-banner" class="banner" hidden></div>
   <details class="card" id="settings" hidden>
     <summary><h2>Settings</h2></summary>
+    <button type="button" class="btn small" id="set-close-top" style="position:absolute;right:16px;top:16px">Close</button>
     <form id="set-form" autocomplete="off">
       <div class="sgrid">
         <section>
@@ -331,6 +333,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
       </div>
       <div style="display:flex;gap:10px;align-items:center;margin-top:18px;flex-wrap:wrap">
         <button class="btn primary" type="submit">Save settings</button>
+        <button class="btn" type="button" id="set-close">Close</button>
         <span class="small muted" id="set-status"></span>
       </div>
     </form>
@@ -1202,8 +1205,10 @@ function budTotal(){
   const v=CATS.reduce((a,c)=>a+num(($('#b-'+c.k)||{}).value),0), f=(fxDraft||[]).reduce((a,x)=>a+num(x.amt),0);
   $('#bud-total').textContent=`${m0(v)} + ${m0(f)} fixed = ${m0(v+f)}`+(S()&&S().rollover&&S().rollover.length?'':'');
 }
+function closeSettings(){const d=$('#settings');d.open=false;d.hidden=true;window.scrollTo(0,0)}
 function setupSettings(){
   const form=$('#set-form');
+  $('#set-close').onclick=closeSettings;$('#set-close-top').onclick=closeSettings;
   form.addEventListener('input',()=>{settingsDirty=true;budTotal()});
   $('#settings').addEventListener('toggle',()=>{if($('#settings').open&&!settingsDirty)fillSettings(true)});
   $('#fx-add').onclick=()=>{fxDraft.push({name:'',amt:''});settingsDirty=true;renderFx();$('#fx-n-'+(fxDraft.length-1)).focus()};
@@ -1221,6 +1226,7 @@ function setupSettings(){
     });
     settingsDirty=false;
     save('settings',s).then(()=>{$('#set-status').textContent='Saved.';setTimeout(()=>$('#set-status').textContent='',3000)});
+    closeSettings();toast('Settings saved.');
   });
   $('#ret-date').addEventListener('change',e=>{
     const s=clone(S()||{});s.breakEnd=e.target.value||null;save('settings',s);
