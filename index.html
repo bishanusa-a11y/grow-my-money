@@ -443,6 +443,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
         <div class="card-head"><h2 id="goals-h">Goals</h2><button class="btn small" id="goal-add-btn">Add goal</button></div>
         <form class="form" id="goal-form" hidden style="margin-bottom:16px">
           <label for="g-name">Goal<input id="g-name" placeholder="e.g. Japan trip in March" required></label>
+          <label for="g-cat">Budget to use<select id="g-cat"></select></label>
           <div class="row2">
             <label for="g-target">Target<input id="g-target" inputmode="decimal" required></label>
             <label for="g-by">By<input type="month" id="g-by"></label>
@@ -450,7 +451,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
           <div style="display:flex;gap:8px"><button class="btn primary small" type="submit">Save goal</button><button class="btn small" type="button" id="goal-cancel">Cancel</button></div>
         </form>
         <ul class="goals" id="goals"></ul>
-        <p class="hint" style="margin-top:12px">Set-aside money is taken out of Cash so you can't spend it by mistake. When you pay for part of the goal, log it as spending and tap Spent for the same amount. Take back only if you change your mind.</p>
+        <p class="hint" style="margin-top:12px">Set aside takes the money from that budget straight away, as if spent, so it comes out of Cash and the budget at once. When you pay for part of the goal, tap Spent; don't log it again. Take back returns money to the budget.</p>
       </section>
   <section class="card" aria-labelledby="inv-h">
         <div class="card-head"><h2 id="inv-h">Investments</h2><button class="btn small" id="inv-add-btn">Add platform</button></div>
@@ -578,6 +579,7 @@ const num=v=>{if(v==null)return 0;let s=String(v).trim();if(!s)return 0;let neg=
 const fmtDate=d=>d.getDate()+' '+MON[d.getMonth()]+' '+d.getFullYear();
 const fmtMonthYr=d=>MON[d.getMonth()]+' '+d.getFullYear();
 const clone=o=>JSON.parse(JSON.stringify(o||{}));
+const isoToday=()=>TODAY.getFullYear()+'-'+pad(TODAY.getMonth()+1)+'-'+pad(TODAY.getDate());
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 
 const TODAY=new Date(); TODAY.setHours(12,0,0,0);
@@ -660,7 +662,7 @@ function cashNow(){
   const s=S(); if(!s||!s.openingMonth) return null;
   let c=num(s.openingCash)-num(s.unpaidCard)+num(s.owedToMe);
   for(let mk=s.openingMonth;mk<=CUR;mk=mkAdd(mk,1)){const m=monthData(mk);c+=m.income-m.total}
-  return c-goalsSaved();
+  return c;
 }
 function recent(){
   const ms=[1,2,3].map(i=>monthData(mkAdd(CUR,-i))).filter(m=>m.src!=='none');
@@ -926,7 +928,7 @@ function updateHint(){
   h.textContent=after>b?`${m0(after-b)} over budget`:`${m0(b-after)} left`;
   h.style.color=after>b?'var(--bad)':'';
 }
-function addEntry(e){
+function addEntry(e,quiet){
   const mk=e.date.slice(0,7), key='m-'+mk;
   let d=docs[key]?clone(docs[key]):{entries:[]};
   if(!d.entries) d.entries=[];
@@ -936,6 +938,7 @@ function addEntry(e){
   }
   d.entries.push(e);
   save(key,d);
+  if(quiet) return;
   if(mk!==view){view=mk;render()}
   if(e.type==='income'){toast(`Added ${m2(e.amt)} received.`);return}
   const b=budgetOf(e.cat,mk), sp=monthData(mk).cats[e.cat], c=CAT[e.cat], warnAt=(num(S()&&S().warnAt)||80)/100;
@@ -959,7 +962,7 @@ function renderGoals(){
     const li=document.createElement('li');li.className='goal';
     li.innerHTML=`<div class="gh"><b></b><span class="num small">${m0(done)} / ${m0(t)}</span></div>
       <div class="bar"><i style="width:${r*100}%;${done>=t?'background:var(--ok)':''}"></i></div>
-      <div class="gs"><span>Set aside ${m0(sv)}${sp?' · spent '+m0(sp):''}</span></div>
+      <div class="gs"><span>Set aside ${m0(sv)} from ${(CAT[g.cat]||CAT.trv).name}${sp?' · spent '+m0(sp):''}</span></div>
       <div class="gs"><span>${pace}</span><span>${Math.round(r*100)}%</span></div>
       <div class="acts"><input inputmode="decimal" placeholder="Amount" aria-label="Amount to set aside"><button class="btn small" data-a="add">Set aside</button><button class="btn small" data-a="spend">Spent</button><button class="btn small" data-a="take">Take back</button><button class="btn link small" data-a="del">Delete</button></div>`;
     li.querySelector('b').textContent=g.name;
@@ -968,17 +971,24 @@ function renderGoals(){
       const a=btn.dataset.a, items=clone(docs.goals).items||[], i=items.findIndex(x=>x.id===g.id);
       if(i<0) return;
       if(a==='del'){const before=clone(docs.goals);items.splice(i,1);save('goals',{items});toast(`Deleted goal “${g.name}”.`,'Undo',()=>save('goals',before));return}
-      const v=num(inp.value); if(!v){toast('Enter an amount first.');return}
+      let v=num(inp.value); if(!v){toast('Enter an amount first.');return}
+      const gc=CAT[g.cat]||CAT.trv;
       if(a==='spend'){const use=Math.min(v,num(items[i].saved));items[i].saved=Math.round((num(items[i].saved)-use)*100)/100;items[i].spent=Math.round((num(items[i].spent)+v)*100)/100}
-      else items[i].saved=Math.max(0,Math.round((num(items[i].saved)+(a==='add'?v:-v))*100)/100);
+      else {
+        if(a==='take') v=Math.min(v,num(items[i].saved));
+        if(!v){toast('Nothing set aside to take back.');return}
+        items[i].saved=Math.max(0,Math.round((num(items[i].saved)+(a==='add'?v:-v))*100)/100);
+        addEntry({id:uid(),date:isoToday(),amt:a==='add'?v:-v,type:'expense',cat:gc.k,note:(a==='add'?'Set aside: ':'Take back: ')+g.name,goal:g.id},true);
+      }
       save('goals',{items});
-      toast(a==='add'?`Set aside ${m0(v)}, taken out of Cash`:a==='spend'?`${m0(v)} spent on ${g.name}. Log it as spending too.`:`Took back ${m0(v)}, returned to Cash`);
+      toast(a==='add'?`Set aside ${m0(v)} from the ${gc.name} budget`:a==='spend'?`${m0(v)} spent on ${g.name}`:`Took back ${m0(v)} to the ${gc.name} budget`);
     });
     ul.appendChild(li);
   });
 }
 function setupGoals(){
   const f=$('#goal-form');
+  $('#g-cat').innerHTML=CATS.map(c=>`<option value="${c.k}">${c.name}</option>`).join('');$('#g-cat').value='trv';
   $('#goal-add-btn').onclick=()=>{f.hidden=false;$('#g-name').focus()};
   $('#goal-cancel').onclick=()=>{f.hidden=true};
   f.addEventListener('submit',ev=>{
@@ -986,7 +996,7 @@ function setupGoals(){
     const name=$('#g-name').value.trim().slice(0,80), target=num($('#g-target').value);
     if(!name||!target){toast('Give the goal a name and a target amount.');return}
     const items=clone(docs.goals).items||[];
-    items.push({id:uid(),name,target,saved:0,by:$('#g-by').value||null});
+    items.push({id:uid(),name,target,saved:0,spent:0,cat:$('#g-cat').value||'trv',by:$('#g-by').value||null});
     save('goals',{items});
     f.reset();f.hidden=true;toast(`Added goal “${name}”.`);
   });
@@ -1010,7 +1020,7 @@ function cashAt(mk){
   const s=S(); if(!s||!s.openingMonth||mk<s.openingMonth) return null;
   let c=num(s.openingCash)-num(s.unpaidCard)+num(s.owedToMe);
   for(let m=s.openingMonth;m<=mk&&m<=CUR;m=mkAdd(m,1)){const d=monthData(m);c+=d.income-d.total}
-  return mk>=CUR?c-goalsSaved():c;
+  return c;
 }
 function renderGrowth(){
   const sn=invSnaps(), s=S(), box=$('#inv-growth');
