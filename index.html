@@ -450,7 +450,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
           <div style="display:flex;gap:8px"><button class="btn primary small" type="submit">Save goal</button><button class="btn small" type="button" id="goal-cancel">Cancel</button></div>
         </form>
         <ul class="goals" id="goals"></ul>
-        <p class="hint" style="margin-top:12px">Set-aside money is taken out of Cash so you can't spend it by mistake. When you pay for the goal, log it as spending and tap Take back.</p>
+        <p class="hint" style="margin-top:12px">Set-aside money is taken out of Cash so you can't spend it by mistake. When you pay for part of the goal, log it as spending and tap Spent for the same amount. Take back only if you change your mind.</p>
       </section>
   <section class="card" aria-labelledby="inv-h">
         <div class="card-head"><h2 id="inv-h">Investments</h2><button class="btn small" id="inv-add-btn">Add platform</button></div>
@@ -950,17 +950,18 @@ function renderGoals(){
   if(!gs.length){ul.innerHTML='<li class="empty">No goals yet.</li>';return}
   ul.innerHTML='';
   gs.forEach(g=>{
-    const t=num(g.target), sv=num(g.saved), r=t?Math.min(1,sv/t):0;
+    const t=num(g.target), sv=num(g.saved), sp=num(g.spent), done=sv+sp, r=t?Math.min(1,done/t):0;
     let pace='';
-    if(g.by&&sv<t){
+    if(g.by&&done<t){
       const [y,m]=g.by.split('-').map(Number);const months=Math.max(1,(y-TODAY.getFullYear())*12+(m-1-TODAY.getMonth()));
-      pace=`${m0((t-sv)/months)}/month to reach it by ${mkLabel(g.by)}`;
-    } else if(sv>=t) pace='Fully funded';
+      pace=`${m0((t-done)/months)}/month to reach it by ${mkLabel(g.by)}`;
+    } else if(done>=t) pace=sp>=t?'Done':'Fully funded';
     const li=document.createElement('li');li.className='goal';
-    li.innerHTML=`<div class="gh"><b></b><span class="num small">${m0(sv)} / ${m0(t)}</span></div>
-      <div class="bar"><i class="${sv>=t?'':''}" style="width:${r*100}%;${sv>=t?'background:var(--ok)':''}"></i></div>
+    li.innerHTML=`<div class="gh"><b></b><span class="num small">${m0(done)} / ${m0(t)}</span></div>
+      <div class="bar"><i style="width:${r*100}%;${done>=t?'background:var(--ok)':''}"></i></div>
+      <div class="gs"><span>Set aside ${m0(sv)}${sp?' · spent '+m0(sp):''}</span></div>
       <div class="gs"><span>${pace}</span><span>${Math.round(r*100)}%</span></div>
-      <div class="acts"><input inputmode="decimal" placeholder="Amount" aria-label="Amount to set aside"><button class="btn small" data-a="add">Set aside</button><button class="btn small" data-a="take">Take back</button><button class="btn link small" data-a="del">Delete</button></div>`;
+      <div class="acts"><input inputmode="decimal" placeholder="Amount" aria-label="Amount to set aside"><button class="btn small" data-a="add">Set aside</button><button class="btn small" data-a="spend">Spent</button><button class="btn small" data-a="take">Take back</button><button class="btn link small" data-a="del">Delete</button></div>`;
     li.querySelector('b').textContent=g.name;
     const inp=li.querySelector('input');
     li.querySelectorAll('button').forEach(btn=>btn.onclick=()=>{
@@ -968,9 +969,10 @@ function renderGoals(){
       if(i<0) return;
       if(a==='del'){const before=clone(docs.goals);items.splice(i,1);save('goals',{items});toast(`Deleted goal “${g.name}”.`,'Undo',()=>save('goals',before));return}
       const v=num(inp.value); if(!v){toast('Enter an amount first.');return}
-      items[i].saved=Math.max(0,Math.round((num(items[i].saved)+(a==='add'?v:-v))*100)/100);
+      if(a==='spend'){const use=Math.min(v,num(items[i].saved));items[i].saved=Math.round((num(items[i].saved)-use)*100)/100;items[i].spent=Math.round((num(items[i].spent)+v)*100)/100}
+      else items[i].saved=Math.max(0,Math.round((num(items[i].saved)+(a==='add'?v:-v))*100)/100);
       save('goals',{items});
-      toast(a==='add'?`Set aside ${m0(v)}, taken out of Cash`:`Took back ${m0(v)}, returned to Cash`);
+      toast(a==='add'?`Set aside ${m0(v)}, taken out of Cash`:a==='spend'?`${m0(v)} spent on ${g.name}. Log it as spending too.`:`Took back ${m0(v)}, returned to Cash`);
     });
     ul.appendChild(li);
   });
