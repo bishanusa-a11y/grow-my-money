@@ -450,7 +450,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
           <div style="display:flex;gap:8px"><button class="btn primary small" type="submit">Save goal</button><button class="btn small" type="button" id="goal-cancel">Cancel</button></div>
         </form>
         <ul class="goals" id="goals"></ul>
-        
+        <p class="hint" style="margin-top:12px">Set-aside money is taken out of Cash so you can't spend it by mistake. When you pay for the goal, log it as spending and tap Take back.</p>
       </section>
   <section class="card" aria-labelledby="inv-h">
         <div class="card-head"><h2 id="inv-h">Investments</h2><button class="btn small" id="inv-add-btn">Add platform</button></div>
@@ -660,7 +660,7 @@ function cashNow(){
   const s=S(); if(!s||!s.openingMonth) return null;
   let c=num(s.openingCash)-num(s.unpaidCard)+num(s.owedToMe);
   for(let mk=s.openingMonth;mk<=CUR;mk=mkAdd(mk,1)){const m=monthData(mk);c+=m.income-m.total}
-  return c;
+  return c-goalsSaved();
 }
 function recent(){
   const ms=[1,2,3].map(i=>monthData(mkAdd(CUR,-i))).filter(m=>m.src!=='none');
@@ -680,7 +680,7 @@ function project(b){
   const remain=Math.max(0,vb-cur.variable);
   const income=num(s.monthlyIncome);
   const burn=fx+vb-income;
-  const spendable=now-remain-num(s.floor)-goalsSaved();
+  const spendable=now-remain-num(s.floor);
   const inv=invTotal(), countInv=!!s.countInvest;
   const pool=spendable+(countInv?inv:0);
   const eom=new Date(TODAY.getFullYear(),TODAY.getMonth()+1,0,12);
@@ -726,7 +726,6 @@ function alertsFor(){
     const p=project(basis);
     if(p){
       if(p.now-num(s.floor)<0) list.push(['bad','FLOOR',`Cash ${m0(p.now)} is below your floor`]);
-      if(goalsSaved()>0&&p.now-num(s.floor)<goalsSaved()) list.push(['bad','GOALS',`Cash is below what you set aside for goals (${m0(goalsSaved())})`]);
       if(p.target&&p.gap>0&&p.needMonths>0){
         list.push(['bad','RUNWAY',`Cash runs out <b>${p.endDate?fmtMonthYr(p.endDate):'—'}</b>, short <b>${m0(p.gap)}</b>. Safe spend <b>${m0(Math.max(0,p.safe))}/month</b>`]);
       }
@@ -772,7 +771,7 @@ function renderRunway(){
   $('#r-sentence').innerHTML=sent;
   const stats=[
     ['Cash',m0(p.now),''],
-    ['Goals',m0(goalsSaved()),''],
+    ['Set aside for goals',m0(goalsSaved()),''],
     ['Net per month',(p.burn<0?'+':'')+m0(-p.burn),p.burn<=0?'good':'bad'],
     ['Left this month',m0(p.remain),''],
   ];
@@ -971,7 +970,7 @@ function renderGoals(){
       const v=num(inp.value); if(!v){toast('Enter an amount first.');return}
       items[i].saved=Math.max(0,Math.round((num(items[i].saved)+(a==='add'?v:-v))*100)/100);
       save('goals',{items});
-      toast(a==='add'?`Set aside ${m0(v)}`:`Took back ${m0(v)}`);
+      toast(a==='add'?`Set aside ${m0(v)}, taken out of Cash`:`Took back ${m0(v)}, returned to Cash`);
     });
     ul.appendChild(li);
   });
@@ -1009,7 +1008,7 @@ function cashAt(mk){
   const s=S(); if(!s||!s.openingMonth||mk<s.openingMonth) return null;
   let c=num(s.openingCash)-num(s.unpaidCard)+num(s.owedToMe);
   for(let m=s.openingMonth;m<=mk&&m<=CUR;m=mkAdd(m,1)){const d=monthData(m);c+=d.income-d.total}
-  return c;
+  return mk>=CUR?c-goalsSaved():c;
 }
 function renderGrowth(){
   const sn=invSnaps(), s=S(), box=$('#inv-growth');
