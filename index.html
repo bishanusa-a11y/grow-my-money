@@ -126,6 +126,15 @@ label{display:grid;gap:4px;font-size:.85rem;color:var(--muted);min-width:0}
 /* month summary */
 .msum{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline}
 .msum .num{font-size:1.6rem;font-weight:600}
+.cf-t{width:100%;border-collapse:collapse;font-size:.95rem}
+.cf-t td{padding:6px 0;border-top:1px solid var(--line)}
+.cf-t td:last-child{text-align:right}
+.cf-t tr:first-child td{border-top:0}
+.cf-t .in{color:var(--ok)}
+.cf-t .tot td{font-weight:700;border-top:2px solid var(--line)}
+.cfbars{display:grid;gap:6px;margin-top:12px}
+.cfbars div{display:grid;grid-template-columns:36px 1fr;gap:8px;align-items:center;font-size:.8rem;color:var(--muted)}
+.cfbars i{display:block;height:10px;border-radius:5px;min-width:2px}
 .msum.three{display:grid;grid-template-columns:1fr 1fr auto;gap:10px}
 .cat.quiet{padding:6px 0;grid-template-columns:52px minmax(0,1fr) auto}
 .cat.quiet .nm div:first-child{font-weight:400;color:var(--muted)}
@@ -292,6 +301,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
       <div class="menu" id="menu" hidden role="menu">
         <button type="button" data-go="home|alerts-h">Alerts</button>
         <button type="button" data-go="home|runway-h">Runway</button>
+        <button type="button" data-go="home|cf-h">Cash flow</button>
         <button type="button" data-go="home|month-h">This month</button>
         <div class="sep"></div>
         <button type="button" data-go="log|log-h">Log spending</button>
@@ -416,6 +426,10 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
         <span><i style="background:repeating-linear-gradient(135deg,var(--hero-soft) 0 3px,transparent 3px 6px);border:1px solid var(--hero-line)"></i>Investments</span>
       </div>
     </div>
+  </section>
+  <section style="grid-column:1/-1" class="card" aria-labelledby="cf-h">
+    <div class="card-head"><h2 id="cf-h">Cash flow</h2><span class="small muted" id="cf-sub"></span></div>
+    <div id="cf"></div>
   </section>
   <section style="grid-column:1/-1" class="card" aria-labelledby="month-h">
         <div class="card-head"><h2 id="month-h">This month</h2><span class="small muted" id="month-src"></span></div>
@@ -543,7 +557,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
         </form>
       </section>
       <section class="card" aria-labelledby="traj-h" style="grid-column:1/-1">
-        <div class="card-head"><h2 id="traj-h">Where it's heading</h2></div>
+        <div class="card-head"><h2 id="traj-h">Where it's heading</h2><label class="check" for="traj-lock" style="font-size:.85rem"><input type="checkbox" id="traj-lock">Include locked (CPF)</label></div>
         <div id="traj"></div>
       </section>
   </div>
@@ -851,6 +865,21 @@ function renderStrip(p){
   let lbl='';for(let i=0;i<horizon;i++){const d=new Date(t0.getFullYear(),t0.getMonth()+i,1);lbl+=`<span>${d.getMonth()===0||i===0?MON[d.getMonth()]+' ’'+String(d.getFullYear()).slice(2):MON[d.getMonth()]}</span>`}
   h+=`<div class="labels">${lbl}</div>`;
   $('#strip').innerHTML=h;
+}
+
+/* ---------- cash flow ---------- */
+function renderCashflow(){
+  const s=S(), box=$('#cf'), md=monthData(view);
+  $('#cf-sub').textContent=mkLabel(view);
+  if(!s){box.innerHTML='<div class="empty">Fill in Settings to see your cash flow.</div>';return}
+  const fx=(s.fixed||[]), invest=fx.filter(f=>/invest/i.test(f.name||'')).reduce((a,f)=>a+num(f.amt),0);
+  const fixed=md.src==='sheet'?md.fixed:md.fixed-invest, inv=md.src==='sheet'?0:invest;
+  const income=md.income, out=fixed+inv+md.variable, net=income-out;
+  const rows=[['Income',income,'in'],['Fixed bills',-fixed],['Investment',-inv],[view===CUR?'Spending so far':'Spending',-md.variable]];
+  const top=Math.max(income,out,1);
+  box.innerHTML=`<table class="cf-t">${rows.map(([l,v,c])=>`<tr><td>${l}</td><td class="num ${c||''}">${v<0?'−':''}${m0(Math.abs(v))}</td></tr>`).join('')}<tr class="tot"><td>Net ${view===CUR?'so far':''}</td><td class="num" style="color:${net>=0?'var(--ok)':'var(--bad)'}">${net>=0?'+':'−'}${m0(Math.abs(net))}</td></tr></table>
+    <div class="cfbars"><div><span>In</span><i style="width:${income/top*100}%;background:var(--ok)"></i></div><div><span>Out</span><i style="width:${out/top*100}%;background:var(--accent)"></i></div></div>
+    <p class="hint" style="margin-top:8px">Income and fixed bills are counted in full for the month; spending is what's logged so far. Goal set-asides are inside Spending.</p>`;
 }
 
 /* ---------- month ---------- */
@@ -1369,7 +1398,8 @@ const short=v=>{const a=Math.abs(v);const t=a>=1e6?(a/1e6).toFixed(1)+'m':a>=1e3
 function renderTraj(){
   const box=$('#traj'), s=S(), pb=project('budget'), pr=project('recent');
   if(!pb){box.innerHTML='<div class="empty">Fill in Settings to see where your money is heading.</div>';return}
-  const start=(cashNow()||0)+invTotal()+bigSaved();
+  const lockedVal=invList().filter(i=>i.locked).reduce((a,i)=>a+num(i.value),0), withLock=$('#traj-lock').checked&&lockedVal>0;
+  const start=(cashNow()||0)+invTotal()+bigSaved()+(withLock?lockedVal:0);
   const inv=(s.fixed||[]).filter(f=>/invest/i.test(f.name||'')).reduce((a,f)=>a+num(f.amt),0);
   const hc=hdbCalc(); let H=36; if(hc) H=Math.max(H,hc.n+3); H=Math.min(H,72);
   const series=burn=>{const a=[start];for(let i=1;i<=H;i++)a.push(a[i-1]-burn+inv);return a};
@@ -1390,7 +1420,7 @@ function renderTraj(){
   const when=i=>{const d=new Date(TODAY.getFullYear(),TODAY.getMonth()+i,1);return MON[d.getMonth()]+' '+d.getFullYear()};
   box.innerHTML=`<svg viewBox="0 0 ${W} ${Ht}" style="width:100%;height:auto;display:block" role="img" aria-label="Cash and investments over the next ${H} months">${g}</svg>
     <div class="hleg" style="margin-top:8px"><span><i style="background:var(--accent)"></i>At budget: ${m0(sb[H])} by ${when(H)}${zb!=null?' · below zero in '+when(zb):''}</span>${sr?`<span><i style="background:var(--bad)"></i>At recent pace: ${m0(sr[H])}${zr!=null?' · below zero in '+when(zr):''}</span>`:''}</div>
-    <p class="hint" style="margin-top:8px">Starts from cash + investments today (${m0(start)}). Investments assumed flat${inv?', plus the '+m0(inv)+' a month you invest':''}; no returns are guessed. Income and bills as in Settings.</p>`;
+    <p class="hint" style="margin-top:8px">Starts from cash + investments${withLock?' + locked':''} today (${m0(start)}).${withLock?' Locked money is held flat; its own growth is not projected.':''} Investments assumed flat${inv?', plus the '+m0(inv)+' a month you invest':''}; no returns are guessed. Income and bills as in Settings.</p>`;
 }
 
 /* ---------- history ---------- */
@@ -1589,11 +1619,13 @@ function render(){
   $('#mlabel').textContent=mkLabel(view);
   $('#next').disabled=view>=mkAdd(CUR,1);
   if(mode==='loading') return;
-  renderAlerts();renderRunway();renderMonth();renderEntries();renderGoals();renderInvest();renderGrowth();renderHdb();renderTraj();renderHistory();syncCatSelect();updateHint();
+  renderAlerts();renderRunway();renderCashflow();renderMonth();renderEntries();renderGoals();renderInvest();renderGrowth();renderHdb();renderTraj();renderHistory();syncCatSelect();updateHint();
   if(!$('#settings').open) fillSettings(true); else fillSettings(false);
 }
 $('#entries-filter').onchange=ev=>{entriesFilter=ev.target.value;entriesAll=false;renderEntries()};
 $('#entries-search').addEventListener('input',ev=>{entriesQ=ev.target.value;entriesAll=false;renderEntries()});
+$('#traj-lock').onchange=()=>{try{localStorage.setItem('gmm-traj-lock',$('#traj-lock').checked?'1':'')}catch(e){}renderTraj()};
+try{$('#traj-lock').checked=!!localStorage.getItem('gmm-traj-lock')}catch(e){}
 $('#entries-more').onclick=()=>{entriesAll=!entriesAll;renderEntries()};
 $('#prev').onclick=()=>{entriesAll=false;view=mkAdd(view,-1);$('#p-month').value=view;render()};
 $('#next').onclick=()=>{entriesAll=false;view=mkAdd(view,1);$('#p-month').value=view;render()};
