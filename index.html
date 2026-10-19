@@ -301,6 +301,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
         <button type="button" data-go="plan|goals-h">Goals</button>
         <button type="button" data-go="plan|inv-h">Investments</button>
         <button type="button" data-go="plan|hdb-h">Big purchase</button>
+        <button type="button" data-go="plan|traj-h">Where it's heading</button>
         <div class="sep"></div>
         <button type="button" data-go="history|hist-h">Last 12 months</button>
         <div class="sep"></div>
@@ -538,6 +539,10 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
           </div>
           <div style="display:flex;gap:8px"><button class="btn primary small" type="submit">Save</button><button class="btn small" type="button" id="hdb-cancel">Cancel</button></div>
         </form>
+      </section>
+      <section class="card" aria-labelledby="traj-h" style="grid-column:1/-1">
+        <div class="card-head"><h2 id="traj-h">Where it's heading</h2></div>
+        <div id="traj"></div>
       </section>
   </div>
   <div class="tab" id="tab-history" hidden>
@@ -1348,6 +1353,35 @@ function setupHdb(){
   });
 }
 
+/* ---------- trajectory ---------- */
+const short=v=>{const a=Math.abs(v);const t=a>=1e6?(a/1e6).toFixed(1)+'m':a>=1e3?Math.round(a/1e3)+'k':String(Math.round(a));return (v<0?'−':'')+SYM()+t};
+function renderTraj(){
+  const box=$('#traj'), s=S(), pb=project('budget'), pr=project('recent');
+  if(!pb){box.innerHTML='<div class="empty">Fill in Settings to see where your money is heading.</div>';return}
+  const start=(cashNow()||0)+invTotal()+bigSaved();
+  const inv=(s.fixed||[]).filter(f=>/invest/i.test(f.name||'')).reduce((a,f)=>a+num(f.amt),0);
+  const hc=hdbCalc(); let H=36; if(hc) H=Math.max(H,hc.n+3); H=Math.min(H,72);
+  const series=burn=>{const a=[start];for(let i=1;i<=H;i++)a.push(a[i-1]-burn+inv);return a};
+  const sb=series(pb.burn), sr=pr&&pr.basisUsed==='recent'?series(pr.burn):null;
+  const vals=[...sb,...(sr||[]),0,hc?hc.need:0]; let lo=Math.min(...vals), hi=Math.max(...vals); if(hi===lo)hi=lo+1; const padv=(hi-lo)*0.08; lo-=padv; hi+=padv;
+  const W=600,Ht=250,L=58,R=16,T=18,B=36; const X=i=>L+(W-L-R)*i/H, Y=v=>T+(Ht-T-B)*(1-(v-lo)/(hi-lo));
+  const pl=a=>a.map((v,i)=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+  let g='';
+  for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4;g+=`<line x1="${L}" x2="${W-R}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="var(--line)"/><text x="${L-6}" y="${(Y(v)+4).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--muted)">${short(v)}</text>`}
+  if(lo<0&&hi>0) g+=`<line x1="${L}" x2="${W-R}" y1="${Y(0).toFixed(1)}" y2="${Y(0).toFixed(1)}" stroke="var(--bad)" stroke-dasharray="3 3"/>`;
+  const step=H>48?12:6;
+  for(let i=0;i<=H;i+=step){const d=new Date(TODAY.getFullYear(),TODAY.getMonth()+i,1);g+=`<text x="${X(i).toFixed(1)}" y="${Ht-B+16}" text-anchor="middle" font-size="10" fill="var(--muted)">${MON[d.getMonth()]} ${String(d.getFullYear()).slice(2)}</text>`}
+  if(hc&&hc.n<=H){g+=`<line x1="${X(hc.n).toFixed(1)}" x2="${X(hc.n).toFixed(1)}" y1="${T}" y2="${Ht-B}" stroke="var(--ink)" stroke-dasharray="4 3" opacity=".6"/><line x1="${L}" x2="${W-R}" y1="${Y(hc.need).toFixed(1)}" y2="${Y(hc.need).toFixed(1)}" stroke="var(--ok)" stroke-dasharray="4 3"/><text x="${W-R}" y="${(Y(hc.need)-5).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--ok)">Need ${short(hc.need)} by ${mkLabel(hc.date)}</text>`}
+  if(sr) g+=`<polyline points="${pl(sr)}" fill="none" stroke="var(--bad)" stroke-width="2"/>`;
+  g+=`<polyline points="${pl(sb)}" fill="none" stroke="var(--accent)" stroke-width="2.5"/>`;
+  g+=`<circle cx="${X(0).toFixed(1)}" cy="${Y(start).toFixed(1)}" r="3.5" fill="var(--ink)"/>`;
+  const zero=a=>{const i=a.findIndex(v=>v<0);return i<0?null:i}, zb=zero(sb), zr=sr?zero(sr):null;
+  const when=i=>{const d=new Date(TODAY.getFullYear(),TODAY.getMonth()+i,1);return MON[d.getMonth()]+' '+d.getFullYear()};
+  box.innerHTML=`<svg viewBox="0 0 ${W} ${Ht}" style="width:100%;height:auto;display:block" role="img" aria-label="Cash and investments over the next ${H} months">${g}</svg>
+    <div class="hleg" style="margin-top:8px"><span><i style="background:var(--accent)"></i>At budget: ${m0(sb[H])} by ${when(H)}${zb!=null?' · below zero in '+when(zb):''}</span>${sr?`<span><i style="background:var(--bad)"></i>At recent pace: ${m0(sr[H])}${zr!=null?' · below zero in '+when(zr):''}</span>`:''}</div>
+    <p class="hint" style="margin-top:8px">Starts from cash + investments today (${m0(start)}). Investments assumed flat${inv?', plus the '+m0(inv)+' a month you invest':''}; no returns are guessed. Income and bills as in Settings.</p>`;
+}
+
 /* ---------- history ---------- */
 function niceStep(x){const p=Math.pow(10,Math.floor(Math.log10(x)));const f=x/p;return (f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*p}
 function renderHistory(){
@@ -1544,7 +1578,7 @@ function render(){
   $('#mlabel').textContent=mkLabel(view);
   $('#next').disabled=view>=mkAdd(CUR,1);
   if(mode==='loading') return;
-  renderAlerts();renderRunway();renderMonth();renderEntries();renderGoals();renderInvest();renderGrowth();renderHdb();renderHistory();syncCatSelect();updateHint();
+  renderAlerts();renderRunway();renderMonth();renderEntries();renderGoals();renderInvest();renderGrowth();renderHdb();renderTraj();renderHistory();syncCatSelect();updateHint();
   if(!$('#settings').open) fillSettings(true); else fillSettings(false);
 }
 $('#prev').onclick=()=>{view=mkAdd(view,-1);$('#p-month').value=view;render()};
