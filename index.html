@@ -155,6 +155,9 @@ label{display:grid;gap:4px;font-size:.85rem;color:var(--muted);min-width:0}
 .entry{display:grid;grid-template-columns:52px auto minmax(0,1fr) auto 28px;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:.9rem}
 .entry{cursor:pointer}
 .entry .cat-sel{width:auto;max-width:150px;padding:3px 4px;font-size:.78rem;font-family:var(--f-mono);border-radius:5px}
+.imp-row{grid-template-columns:24px 52px auto minmax(0,1fr) auto;cursor:default}
+.imp-row input[type=checkbox]{width:auto;margin:0}
+.imp-row .note{white-space:normal}
 .entry .d{font-family:var(--f-mono);font-size:.78rem;color:var(--muted)}
 .entry .note{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .entry .num{text-align:right}
@@ -285,6 +288,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
         <div class="sep"></div>
         <button type="button" data-go="log|log-h">Log spending</button>
         <button type="button" data-go="log|entries-h">Spending log</button>
+        <button type="button" data-go="log|imp-h">Import statement</button>
         <div class="sep"></div>
         <button type="button" data-go="plan|goals-h">Goals</button>
         <button type="button" data-go="plan|inv-h">Investments</button>
@@ -439,6 +443,18 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
         <div class="card-head"><h2 id="entries-h">Spending log</h2><span class="small muted" id="entries-count"></span></div>
         <ul class="entries" id="entries"></ul>
       </section>
+  <section class="card" aria-labelledby="imp-h">
+    <div class="card-head"><h2 id="imp-h">Import card statement</h2></div>
+    <p class="hint">A CSV file downloaded from your bank, or rows pasted from it. Payments and refunds are left unticked.</p>
+    <div class="row2">
+      <label for="imp-file">File<input type="file" id="imp-file" accept=".csv,.txt,.tsv,text/csv,text/plain"></label>
+      <label for="imp-month">Month, if rows have no year<input type="month" id="imp-month"></label>
+    </div>
+    <label for="imp-box">Or paste rows<textarea id="imp-box" placeholder="Date, description, amount"></textarea></label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn small" id="imp-check">Check</button><button type="button" class="btn primary small" id="imp-go" hidden>Import ticked rows</button></div>
+    <p class="hint" id="imp-result"></p>
+    <ul class="entries" id="imp-list"></ul>
+  </section>
   </div>
   <div class="tab" id="tab-plan" hidden>
   <section class="card" aria-labelledby="goals-h">
@@ -954,6 +970,115 @@ function addEntry(e,quiet){
   else toast(`Added ${m2(e.amt)} to ${c.name}.`+(b?` ${m0(b-sp)} left.`:''));
 }
 
+/* ---------- statement import ---------- */
+const AUTO_RULES=[
+  [/grab|gojek|comfort|cdg|taxi|ryde|tada|bus\b|mrt|ez-?link|simplygo|transit|parking|petrol|esso|shell|caltex|spc\b/i,'trn'],
+  [/netflix|spotify|youtube|apple\.com|itunes|icloud|disney|hbo|viu|google \*|google play|amazon prime|chatgpt|openai|anthropic|microsoft|adobe|singtel|starhub|m1\b|circles|giga|simba/i,'kpo'],
+  [/watson|guardian|sephora|skin|beauty|salon|hair|nail|spa\b|facial|cosmetic|innisfree|laneige|sulwhasoo|lb30|clinique|estee|dior beauty/i,'bty'],
+  [/airline|airasia|scoot|singapore air|jetstar|cathay|korean air|agoda|booking\.com|airbnb|hotel|klook|trip\.com|expedia|traveloka|changi|hostel|resort|ktx|jr east|eurail/i,'trv'],
+  [/shopee|lazada|taobao|uniqlo|zara|h&m|cotton on|amazon|qoo10|sephora|charles|pedro|lovebonito|decathlon|ikea|muji|don don donki|takashimaya|isetan|tangs/i,'shp'],
+  [/pharmac|clinic|dental|dentist|hospital|medical|polyclinic|raffles med|healthway|physio|optic|tcm\b|gp\b/i,'hlt'],
+  [/fairprice|ntuc|cold storage|sheng siong|giant|redmart|prime supermarket|supermarket|market|grocer|7-eleven|cheers\b/i,'hse'],
+  [/gift|florist|flower|ang ?pow|wedding/i,'gft'],
+  [/restaurant|cafe|coffee|starbucks|toast box|ya kun|mcdonald|kfc|burger|pizza|foodpanda|deliveroo|grabfood|bar\b|pub\b|bistro|kitchen|eating|food|dining|sushi|ramen|hotpot|haidilao|dim sum|bakery|bread|tea\b|boba|liho|koi|bubble|wine|beer|liquor|cellar|din tai fung|jumbo|paradise|crystal jade|swee choon|lawry|evett|omakase/i,'din'],
+];
+const normKey=d=>String(d).toLowerCase().replace(/[^a-z& ]+/g,' ').replace(/\s+/g,' ').trim().split(' ').slice(0,2).join(' ');
+function autoCat(desc){
+  const r=(S()&&S().rules)||{}, k=normKey(desc), low=String(desc).toLowerCase();
+  for(const key of Object.keys(r)){if(key&&low.includes(key)&&CAT[r[key]]&&!isHidden(r[key])) return r[key]}
+  if(r[k]&&CAT[r[k]]&&!isHidden(r[k])) return r[k];
+  for(const [re,c] of AUTO_RULES){if(re.test(desc)){return isHidden(c)?'giv':c}}
+  return 'giv';
+}
+function parseCsvRows(t){
+  const rows=[];let row=[],f='',q=false;
+  for(let i=0;i<t.length;i++){const c=t[i];
+    if(q){if(c=='"'&&t[i+1]=='"'){f+='"';i++}else if(c=='"')q=false;else f+=c}
+    else{if(c=='"')q=true;else if(c==','||c=='\t'){row.push(f);f=''}else if(c=='\n'){row.push(f);rows.push(row);row=[];f=''}else if(c!='\r')f+=c}}
+  row.push(f);rows.push(row);
+  return rows.map(r=>r.map(x=>x.trim())).filter(r=>r.some(x=>x));
+}
+function parseDate(x,fallbackMk){
+  x=String(x).trim();let m;
+  if(m=x.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)) return `${m[1]}-${pad(+m[2])}-${pad(+m[3])}`;
+  if(m=x.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/)) return `${m[3]}-${pad(+m[2])}-${pad(+m[1])}`;
+  if(m=x.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2})$/)) return `20${m[3]}-${pad(+m[2])}-${pad(+m[1])}`;
+  if(m=x.match(/^(\d{1,2})\s+([A-Za-z]{3})[A-Za-z]*\.?\s*(\d{4})?/)){const mi=MON.findIndex(n=>n.toLowerCase()===m[2].toLowerCase().slice(0,3));if(mi<0)return null;
+    let y=m[3]?+m[3]:(fallbackMk?+fallbackMk.slice(0,4):TODAY.getFullYear());return `${y}-${pad(mi+1)}-${pad(+m[1])}`}
+  return null;
+}
+const isNumCell=x=>/^-?\(?\$?\s*[\d,]+(\.\d+)?\)?\s*(CR|DR)?$/i.test(String(x).trim());
+let impRows=[];
+function parseStatement(txt,fallbackMk){
+  const rows=parseCsvRows(txt); if(!rows.length) return [];
+  let hi=rows.findIndex(r=>r.some(c=>/date/i.test(c))&&r.some(c=>/amount|debit|credit|description|details|transaction/i.test(c)));
+  let hdr=hi>=0?rows[hi].map(h=>h.toLowerCase()):null, out=[];
+  const col=re=>hdr?hdr.findIndex(h=>re.test(h)):-1;
+  const cDate=col(/^transaction date|^trans|date/), cDesc=col(/description|details|reference|particular|merchant|narrative/), cDebit=col(/debit|withdraw/), cCredit=col(/credit|deposit/), cAmt=col(/amount.*local|local.*amount|transaction amount|^amount|amt/);
+  rows.forEach((r,i)=>{
+    if(hi>=0&&i<=hi) return;
+    let date=null,desc='',amt=null,credit=false;
+    if(hdr){
+      date=cDate>=0?parseDate(r[cDate],fallbackMk):null;
+      desc=cDesc>=0?r[cDesc]:'';
+      if(cDebit>=0&&num(r[cDebit])){amt=num(r[cDebit])}
+      else if(cCredit>=0&&num(r[cCredit])){amt=num(r[cCredit]);credit=true}
+      else if(cAmt>=0&&r[cAmt]!==undefined&&r[cAmt]!==''){amt=num(r[cAmt]);if(/cr/i.test(r[cAmt])||amt<0){credit=true;amt=Math.abs(amt)}}
+    }
+    if(!date){for(const c of r){const d=parseDate(c,fallbackMk);if(d){date=d;break}}}
+    if(amt==null){const nums=r.filter(c=>isNumCell(c)&&!parseDate(c,null)&&c.replace(/[^\d]/g,'').length>=2);if(nums.length){const raw=nums[nums.length-1];amt=num(raw);if(/cr/i.test(raw)||/^\(/.test(raw.trim())||amt<0){credit=true;amt=Math.abs(amt)}}}
+    if(!desc){desc=r.filter(c=>!isNumCell(c)&&!parseDate(c,null)).sort((a,b)=>b.length-a.length)[0]||''}
+    if(!date||!amt||!desc) return;
+    if(/payment|thank you|paynow|giro|rebate|cashback|refund|reversal/i.test(desc)) credit=true;
+    out.push({date,desc:desc.slice(0,120),amt:Math.round(amt*100)/100,credit,cat:autoCat(desc)});
+  });
+  return out;
+}
+function renderImport(){
+  const ul=$('#imp-list'); ul.innerHTML='';
+  impRows.forEach((r,i)=>{
+    const li=document.createElement('li');li.className='entry imp-row';
+    const dt=new Date(r.date+'T12:00:00');
+    li.innerHTML=`<input type="checkbox" ${r.credit?'':'checked'} aria-label="Include"><span class="d">${dt.getDate()} ${MON[dt.getMonth()]}</span><select class="cat-sel" aria-label="Category">${CATS.filter(c=>!isHidden(c.k)&&c.k!=='oth').map(c=>`<option value="${c.k}"${c.k===r.cat?' selected':''}>${c.code} · ${c.name}</option>`).join('')}</select><span class="note"></span><span class="num">${r.credit?'−':''}${m2(r.amt)}</span>`;
+    li.querySelector('.note').textContent=r.desc+(r.credit?' (payment or refund)':'');
+    li.querySelector('input').onchange=ev=>{r.include=ev.target.checked};
+    li.querySelector('select').onchange=ev=>{r.cat=ev.target.value;r.learned=true};
+    r.include=!r.credit;
+    ul.appendChild(li);
+  });
+}
+function setupImport(){
+  $('#imp-month').value=view;
+  let fileText='';
+  $('#imp-file').onchange=async ev=>{const f=ev.target.files&&ev.target.files[0];if(!f)return;fileText=await f.text();$('#imp-result').textContent=`Loaded ${f.name}. Tap Check.`};
+  $('#imp-check').onclick=()=>{
+    const txt=$('#imp-box').value.trim()||fileText;
+    if(!txt){$('#imp-result').textContent='Choose a file or paste rows first.';return}
+    impRows=parseStatement(txt,$('#imp-month').value||view);
+    $('#imp-go').hidden=!impRows.length;
+    const n=impRows.filter(r=>!r.credit).length;
+    $('#imp-result').textContent=impRows.length?`Found ${impRows.length} rows, ${n} ticked, totalling ${m2(impRows.filter(r=>!r.credit).reduce((a,r)=>a+r.amt,0))}. Check the categories, then import.`:'No rows found. Include the header row from the bank file, or paste as: date, description, amount.';
+    renderImport();
+  };
+  $('#imp-go').onclick=()=>{
+    const sel=impRows.filter(r=>r.include); if(!sel.length){toast('Nothing ticked.');return}
+    const byMonth={}, rules=Object.assign({},(S()&&S().rules)||{}); let added=0,dups=0;
+    sel.forEach(r=>{
+      const mk=r.date.slice(0,7), key='m-'+mk;
+      if(!byMonth[key]) byMonth[key]=docs[key]?clone(docs[key]):{entries:[]};
+      const d=byMonth[key]; if(!d.entries) d.entries=[];
+      if(d.entries.some(e=>e.date===r.date&&Math.abs(num(e.amt)-r.amt)<0.005&&(e.note||'')===r.desc)){dups++;return}
+      d.entries.push({id:uid(),date:r.date,amt:r.amt,type:'expense',cat:r.cat,note:r.desc,src:'card'});added++;
+      if(r.learned){const k=normKey(r.desc);if(k)rules[k]=r.cat}
+    });
+    Object.keys(byMonth).forEach(k=>save(k,byMonth[k]));
+    if(S()){const st=clone(S());st.rules=rules;save('settings',st)}
+    impRows=[];renderImport();$('#imp-go').hidden=true;$('#imp-box').value='';fileText='';$('#imp-file').value='';
+    $('#imp-result').textContent=`Imported ${added} entr${added===1?'y':'ies'}${dups?`, skipped ${dups} already in the log`:''}.`;
+    toast(`Imported ${added} entries.`);
+  };
+}
+
 /* ---------- goals ---------- */
 function renderGoals(){
   const ul=$('#goals'), gs=goalsList();
@@ -1378,7 +1503,7 @@ menu.querySelectorAll('button').forEach(b=>b.onclick=()=>{
 });
 const setBasis=b=>{basis=b;try{localStorage.setItem('runway-basis',b)}catch(e){}render()};
 $('#basis-budget').onclick=()=>setBasis('budget');$('#basis-recent').onclick=()=>setBasis('recent');
-setupForm();setupGoals();setupSettings();setupBackup();setupPin();setupInvest();setupHdb();
+setupForm();setupGoals();setupSettings();setupBackup();setupPin();setupInvest();setupHdb();setupImport();
 render();
 initStore();
 })();
