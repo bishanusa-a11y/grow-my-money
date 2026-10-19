@@ -452,7 +452,9 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
       </section>
   <section class="card" aria-labelledby="entries-h">
         <div class="card-head"><h2 id="entries-h">Spending log</h2><span class="small muted" id="entries-count"></span></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><select id="entries-filter" aria-label="Show category" style="width:auto"></select></div>
         <ul class="entries" id="entries"></ul>
+        <button type="button" class="btn small" id="entries-more" hidden style="margin-top:10px">Show all</button>
       </section>
   <section class="card" aria-labelledby="imp-h">
     <div class="card-head"><h2 id="imp-h">Import card statement</h2></div>
@@ -894,12 +896,19 @@ function renderMonth(){
       <div class="amt">${m0(sp)} <span class="muted">/ ${m0(b)}</span><span class="left ${cls}">${left}</span></div></li>`;
   }).join('');
 }
+let entriesAll=false, entriesFilter='all';
 function renderEntries(){
   const d=docs['m-'+view], md=monthData(view), ul=$('#entries');
-  const es=((d&&d.entries)||[]).slice().sort((a,b)=>b.date<a.date?-1:b.date>a.date?1:0);
-  $('#entries-count').textContent=es.length?`${es.length} entr${es.length===1?'y':'ies'} · ${mkLabel(view)}`:mkLabel(view);
+  const all=((d&&d.entries)||[]).slice().sort((a,b)=>b.date<a.date?-1:b.date>a.date?1:0);
+  const fsel=$('#entries-filter'); const want=['all','income',...CATS.filter(c=>!isHidden(c.k)||all.some(e=>e.cat===c.k)).map(c=>c.k)];
+  if(fsel.dataset.sig!==want.join()){fsel.dataset.sig=want.join();fsel.innerHTML=want.map(k=>`<option value="${k}">${k==='all'?'All categories':k==='income'?'Income':CAT[k].name}</option>`).join('');fsel.value=want.includes(entriesFilter)?entriesFilter:'all';entriesFilter=fsel.value}
+  const filtered=all.filter(e=>entriesFilter==='all'||(entriesFilter==='income'?e.type==='income':(e.type!=='income'&&(CAT[e.cat]?e.cat:'oth')===entriesFilter)));
+  const LIMIT=8, es=entriesAll||filtered.length<=LIMIT?filtered:filtered.slice(0,LIMIT);
+  const more=$('#entries-more'); more.hidden=filtered.length<=LIMIT; more.textContent=entriesAll?'Show fewer':`Show all ${filtered.length}`;
+  if(entriesFilter!=='all'){const tot=filtered.reduce((a,e)=>a+num(e.amt),0);$('#entries-count').textContent=`${filtered.length} · ${m0(tot)} · ${mkLabel(view)}`}
+  if(entriesFilter==='all') $('#entries-count').textContent=all.length?`${all.length} entr${all.length===1?'y':'ies'} · ${mkLabel(view)}`:mkLabel(view);
   if(!es.length){
-    ul.innerHTML=`<li class="empty">${md.src==='sheet'?'Sheet totals only.':view>CUR?'Not started.':'Nothing logged yet.'}</li>`;
+    ul.innerHTML=`<li class="empty">${entriesFilter!=='all'&&all.length?'Nothing in this category.':md.src==='sheet'?'Sheet totals only.':view>CUR?'Not started.':'Nothing logged yet.'}</li>`;
     return;
   }
   ul.innerHTML='';
@@ -1581,8 +1590,10 @@ function render(){
   renderAlerts();renderRunway();renderMonth();renderEntries();renderGoals();renderInvest();renderGrowth();renderHdb();renderTraj();renderHistory();syncCatSelect();updateHint();
   if(!$('#settings').open) fillSettings(true); else fillSettings(false);
 }
-$('#prev').onclick=()=>{view=mkAdd(view,-1);$('#p-month').value=view;render()};
-$('#next').onclick=()=>{view=mkAdd(view,1);$('#p-month').value=view;render()};
+$('#entries-filter').onchange=ev=>{entriesFilter=ev.target.value;entriesAll=false;renderEntries()};
+$('#entries-more').onclick=()=>{entriesAll=!entriesAll;renderEntries()};
+$('#prev').onclick=()=>{entriesAll=false;view=mkAdd(view,-1);$('#p-month').value=view;render()};
+$('#next').onclick=()=>{entriesAll=false;view=mkAdd(view,1);$('#p-month').value=view;render()};
 let tab='home';try{tab=localStorage.getItem('gmm-tab')||'home'}catch(e){}
 function showTab(t){tab=t;document.querySelectorAll('.tab').forEach(el=>el.hidden=el.id!=='tab-'+t);document.querySelectorAll('.tabbar button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tab===t)));try{localStorage.setItem('gmm-tab',t)}catch(e){}window.scrollTo(0,0)}
 document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
