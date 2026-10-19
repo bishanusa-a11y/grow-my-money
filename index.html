@@ -555,11 +555,11 @@ const CATS=[
   {k:'hob',code:'HOB',name:'Hobbies, books & counselling',re:/hobb|book|counsel/i},
   {k:'hse',code:'HSE',name:'Household',re:/household/i},
   {k:'trn',code:'TRN',name:'Transport',re:/transport/i},
-  {k:'giv',code:'GIV',name:'Giving back & church',re:/giving|church/i},
+  {k:'giv',code:'OTH',name:'Others',re:/^others?$|giving|church/i},
   {k:'trv',code:'TRV',name:'Travel',re:/travel/i},
   {k:'kpo',code:'SUB',name:'Subscriptions',re:/subscri|eunwoo|k-?pop/i},
   {k:'bty',code:'BTY',name:'Beauty, skincare & hair',re:/beauty|skin|hair/i},
-  {k:'oth',code:'OTH',name:'Others',re:/^others?$/i},
+  {k:'oth',code:'UNC',name:'Uncategorised',re:/uncateg/i},
 ];
 const SHEET_ORDER=['din','hlt','shp','gft','hob','hse','trn','giv','trv','kpo','bty'];
 const CAT=Object.fromEntries(CATS.map(c=>[c.k,c]));
@@ -912,7 +912,7 @@ function startEdit(mk,e){
 }
 let catSig='';
 function syncCatSelect(){
-  const ks=CATS.filter(c=>!isHidden(c.k)), sig=ks.map(c=>c.k).join();
+  const ks=CATS.filter(c=>!isHidden(c.k)&&c.k!=='oth'), sig=ks.map(c=>c.k).join();
   if(sig===catSig) return; catSig=sig;
   const sel=$('#f-cat'), v=sel.value;
   sel.innerHTML=ks.map(c=>`<option value="${c.k}">${c.name}</option>`).join('');
