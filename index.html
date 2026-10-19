@@ -708,7 +708,7 @@ function project(b){
 /* ---------- alerts ---------- */
 function alertsFor(){
   const s=S(), list=[];
-  if(!s){list.push(['info','SET UP','Fill in <b>Settings</b> to start.']);return list}
+  if(!s){list.push(['info','SET UP','Enter your starting cash, income, bills and budgets. <button type="button" class="btn small" id="open-settings" style="margin-left:6px">Open Settings</button>']);return list}
   const md=monthData(view), isCur=view===CUR, warnAt=(num(s.warnAt)||80)/100;
   const D=daysIn(view), day=isCur?TODAY.getDate():D, left=D-day;
   const over=[],near=[];
@@ -742,6 +742,8 @@ function alertsFor(){
   if(!list.some(a=>a[0]==='bad'||a[0]==='warn')) list.unshift(['ok','CLEAR','All within budget']);
   return list;
 }
+function openSettingsPanel(){const d=$('#settings');d.hidden=false;d.open=true;setTimeout(()=>d.scrollIntoView({behavior:'smooth',block:'start'}),50)}
+$('#alerts').addEventListener('click',ev=>{if(ev.target.id==='open-settings')openSettingsPanel()});
 function renderAlerts(){
   const list=alertsFor(), ul=$('#alerts');
   ul.innerHTML=list.map(([k,t,h])=>`<li class="alert"><span class="pill ${k}">${t}</span><span>${h}</span></li>`).join('');
