@@ -126,6 +126,13 @@ label{display:grid;gap:4px;font-size:.85rem;color:var(--muted);min-width:0}
 /* month summary */
 .msum{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline}
 .msum .num{font-size:1.6rem;font-weight:600}
+.msum.three{display:grid;grid-template-columns:1fr 1fr auto;gap:10px}
+.cat.quiet{padding:6px 0;grid-template-columns:52px minmax(0,1fr) auto}
+.cat.quiet .nm div:first-child{font-weight:400;color:var(--muted)}
+.donut{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.donut svg{width:130px;height:130px;flex:none;transform:rotate(-90deg)}
+.dleg{display:grid;gap:4px;font-size:.84rem;min-width:0;flex:1}
+.dleg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
 .pace{position:relative;height:10px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);margin:10px 0 4px;overflow:hidden}
 .pace i{position:absolute;top:0;bottom:0;left:0;background:var(--accent)}
 .pace i.warn{background:var(--warn)}
@@ -411,13 +418,15 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
   </section>
   <section style="grid-column:1/-1" class="card" aria-labelledby="month-h">
         <div class="card-head"><h2 id="month-h">This month</h2><span class="small muted" id="month-src"></span></div>
-        <div class="msum">
-          <div><div class="eyebrow">Spent</div><span class="num" id="m-spent">—</span> <span class="muted" id="m-of"></span></div>
-          <div style="text-align:right"><div class="eyebrow">With fixed bills</div><span class="num" style="font-size:1.1rem" id="m-total">—</span></div>
+        <div class="msum three">
+          <div><div class="eyebrow">Spent</div><span class="num" id="m-spent">—</span><div class="small muted" id="m-of"></div></div>
+          <div><div class="eyebrow">Left</div><span class="num" id="m-left">—</span></div>
+          <div style="text-align:right"><div class="eyebrow">Days left</div><span class="num" id="m-days">—</span></div>
         </div>
         <div class="pace" id="m-pace"><i></i><b></b></div>
         <div class="small muted" id="m-pace-note"></div>
         <ul class="cats" id="cats"></ul>
+        <div class="small muted" id="m-top" style="margin-top:12px"></div>
       </section>
   </div>
   <div class="tab" id="tab-log" hidden>
@@ -545,6 +554,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
     <div class="chart"><div class="yax" id="yax"></div><div class="plot" id="plot"></div></div>
     <div class="xax" id="xax"></div>
     <div class="detail" id="h-detail">Tap a month.</div>
+    <div id="h-donut"></div>
   </section>
   </div>
   <nav class="tabbar" aria-label="Sections">
@@ -845,7 +855,8 @@ function renderMonth(){
   $('#month-src').textContent=md.src==='sheet'?'From sheet':md.src==='log'?(isCur?`Day ${day} of ${D}`:''):(view>CUR?'Not started':'Nothing recorded');
   $('#m-spent').textContent=m0(md.variable);
   $('#m-of').textContent=vb?`of ${m0(vb)}`:'';
-  $('#m-total').textContent=m0(md.total);
+  const leftEl=$('#m-left'); leftEl.textContent=vb?m0(vb-md.variable):'—'; leftEl.style.color=vb&&md.variable>vb?'var(--bad)':vb&&md.variable>=vb*(num(s.warnAt)||80)/100?'var(--warn)':'';
+  $('#m-days').textContent=isCur?String(D-day):(view<CUR?'0':String(D));
   const ratio=vb?md.variable/vb:0, warnAt=(num(s.warnAt)||80)/100;
   const pi=$('#m-pace i'), pb=$('#m-pace b');
   pi.style.width=Math.min(100,ratio*100)+'%';
@@ -856,10 +867,16 @@ function renderMonth(){
     if(isCur){const exp=vb*day/D;note=md.variable<=exp?`${m0(exp-md.variable)} under pace`:`${m0(md.variable-exp)} over pace`}
     else note=md.variable<=vb?`${m0(vb-md.variable)} under budget`:`${m0(md.variable-vb)} over budget`;
   }
+  note+=(note?' · ':'')+`With fixed bills ${m0(md.total)}`;
   if(md.income) note+=` · Income ${m0(md.income)}`;
   $('#m-pace-note').textContent=note;
   const rows=CATS.filter(c=>budgetOf(c.k)>0||md.cats[c.k]!==0||(c.k!=='oth'&&c.k!=='kpo'&&!isHidden(c.k)));
+  const ratioOf=c=>{const b=budgetOf(c.k),sp=md.cats[c.k];return b?sp/b:(sp>0?9:0)};
+  rows.sort((a,b)=>{const ra=ratioOf(a),rb=ratioOf(b);if((md.cats[a.k]>0)!==(md.cats[b.k]>0))return md.cats[a.k]>0?-1:1;return rb-ra});
+  const top=CATS.map(c=>[c,md.cats[c.k]]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,3);
+  $('#m-top').textContent=top.length?'Where it went: '+top.map(([c,v])=>`${c.name} ${m0(v)}`).join(' · '):'';
   $('#cats').innerHTML=rows.map(c=>{
+    if(md.cats[c.k]===0){const b0=budgetOf(c.k);return `<li class="cat quiet"><span class="code" title="${c.name}">${c.code}</span><div class="nm"><div>${c.name}</div></div><div class="amt"><span class="muted">${m0(0)} / ${m0(b0)}</span></div></li>`}
     const b=budgetOf(c.k), sp=md.cats[c.k], r=b?sp/b:(sp>0?2:0);
     const cls=r>1?'bad':r>=warnAt?'warn':'';
     const a=avgCat(c.k,6);
@@ -1355,6 +1372,13 @@ function renderHistory(){
   });
   $('#xax').innerHTML=mks.map(mk=>{const m=+mk.split('-')[1];return `<span>${MON[m-1]}${m===1?' ’'+mk.slice(2,4):''}</span>`}).join('');
   const d=data.find(x=>x.mk===selHist);
+  const dn=$('#h-donut');
+  if(d&&d.variable>0){
+    const PAL=['#D4AF37','#57C792','#5AA2FF','#F0A04B','#C77DFF','#FF7AA2','#7FD8E8','#A3B18A','#E5C07B','#9E9E9E','#6FCF97','#B08968'];
+    const parts=CATS.map((c,i)=>[c,d.cats[c.k],PAL[i%PAL.length]]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
+    let off=0; const segs=parts.map(([c,v,col])=>{const pct=v/d.variable*100;const el=`<circle r="15.9155" cx="18" cy="18" fill="none" stroke="${col}" stroke-width="5" stroke-dasharray="${pct.toFixed(2)} ${(100-pct).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}"></circle>`;off+=pct;return el}).join('');
+    dn.innerHTML=`<div class="donut"><svg viewBox="0 0 36 36" role="img" aria-label="${mkLabel(d.mk)} spending by category"><circle r="15.9155" cx="18" cy="18" fill="none" stroke="var(--line)" stroke-width="5"></circle>${segs}</svg><div class="dleg">${parts.map(([c,v,col])=>`<div><i style="background:${col}"></i>${c.name} <span class="num">${m0(v)}</span> <span class="muted">${Math.round(v/d.variable*100)}%</span></div>`).join('')}</div></div>`;
+  } else dn.innerHTML='';
   if(d){
     const topCats=CATS.map(c=>[c,d.cats[c.k]]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([c,v])=>`${c.name} ${m0(v)}`).join(', ');
     $('#h-detail').innerHTML=d.src==='none'?`<b>${mkLabel(d.mk)}</b>: nothing recorded.`:
