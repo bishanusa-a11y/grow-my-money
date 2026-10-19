@@ -158,6 +158,7 @@ label{display:grid;gap:4px;font-size:.85rem;color:var(--muted);min-width:0}
 .imp-row{grid-template-columns:24px 52px auto minmax(0,1fr) auto;cursor:default}
 .imp-row input[type=checkbox]{width:auto;margin:0}
 .imp-row .note{white-space:normal}
+.imp-row .imp-amt{width:88px;padding:3px 6px;text-align:right;font-size:.85rem}
 .entry .d{font-family:var(--f-mono);font-size:.78rem;color:var(--muted)}
 .entry .note{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .entry .num{text-align:right}
@@ -445,9 +446,10 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
       </section>
   <section class="card" aria-labelledby="imp-h">
     <div class="card-head"><h2 id="imp-h">Import card statement</h2></div>
-    <p class="hint">A CSV file downloaded from your bank, or rows pasted from it. Payments and refunds are left unticked.</p>
+    <p class="hint">A CSV file from your bank, a screenshot of the statement, or pasted rows. Payments and refunds are left unticked.</p>
     <div class="row2">
-      <label for="imp-file">File<input type="file" id="imp-file" accept=".csv,.txt,.tsv,text/csv,text/plain"></label>
+      <label for="imp-file">CSV file<input type="file" id="imp-file" accept=".csv,.txt,.tsv,text/csv,text/plain"></label>
+      <label for="imp-img">Screenshot or photo<input type="file" id="imp-img" accept="image/*"></label>
       <label for="imp-month">Month, if rows have no year<input type="month" id="imp-month"></label>
     </div>
     <label for="imp-box">Or paste rows<textarea id="imp-box" placeholder="Date, description, amount"></textarea></label>
@@ -1034,14 +1036,36 @@ function parseStatement(txt,fallbackMk){
   });
   return out;
 }
+function parseOcr(text,fallbackMk){
+  const out=[];
+  const dateRe=/^(\d{1,2}\s*[A-Za-z]{3}[A-Za-z]*\.?(?:\s*\d{4})?|\d{1,2}[\/\-]\d{1,2}(?:[\/\-]\d{2,4})?)\s+/;
+  text.split('\n').map(l=>l.replace(/[|_]/g,' ').replace(/\s+/g,' ').trim()).filter(Boolean).forEach(line=>{
+    const m=line.match(dateRe); if(!m) return;
+    const am=line.match(/(-?\(?\$?\s?[\d,]{1,9}\.\d{2}\)?)\s*(CR|DR)?\s*$/i); if(!am) return;
+    const date=parseDate(m[1].replace(/\s+/g,' '),fallbackMk); if(!date) return;
+    let desc=line.slice(m[0].length,am.index).trim().replace(dateRe,'').trim();
+    let amt=num(am[1]); let credit=/cr/i.test(am[2]||'')||/^\(/.test(am[1])||amt<0; amt=Math.abs(amt);
+    if(!desc||!amt) return;
+    if(/payment|thank you|paynow|giro|rebate|cashback|refund|reversal/i.test(desc)) credit=true;
+    out.push({date,desc:desc.slice(0,120),amt:Math.round(amt*100)/100,credit,cat:autoCat(desc)});
+  });
+  return out;
+}
+function loadScript(u){return new Promise((res,rej)=>{const t=document.createElement('script');t.src=u;t.onload=res;t.onerror=()=>rej(new Error('load'));document.head.appendChild(t)})}
+async function ocrImage(file,onProgress){
+  if(!window.Tesseract) await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
+  const w=await Tesseract.createWorker('eng',1,{logger:m=>{if(m.status==='recognizing text'&&onProgress)onProgress(Math.round(m.progress*100))}});
+  try{const r=await w.recognize(file);return r.data.text}finally{await w.terminate()}
+}
 function renderImport(){
   const ul=$('#imp-list'); ul.innerHTML='';
   impRows.forEach((r,i)=>{
     const li=document.createElement('li');li.className='entry imp-row';
     const dt=new Date(r.date+'T12:00:00');
-    li.innerHTML=`<input type="checkbox" ${r.credit?'':'checked'} aria-label="Include"><span class="d">${dt.getDate()} ${MON[dt.getMonth()]}</span><select class="cat-sel" aria-label="Category">${CATS.filter(c=>!isHidden(c.k)&&c.k!=='oth').map(c=>`<option value="${c.k}"${c.k===r.cat?' selected':''}>${c.code} · ${c.name}</option>`).join('')}</select><span class="note"></span><span class="num">${r.credit?'−':''}${m2(r.amt)}</span>`;
+    li.innerHTML=`<input type="checkbox" ${r.credit?'':'checked'} aria-label="Include"><span class="d">${dt.getDate()} ${MON[dt.getMonth()]}</span><select class="cat-sel" aria-label="Category">${CATS.filter(c=>!isHidden(c.k)&&c.k!=='oth').map(c=>`<option value="${c.k}"${c.k===r.cat?' selected':''}>${c.code} · ${c.name}</option>`).join('')}</select><span class="note"></span><input class="num imp-amt" inputmode="decimal" value="${r.amt.toFixed(2)}" aria-label="Amount">`;
     li.querySelector('.note').textContent=r.desc+(r.credit?' (payment or refund)':'');
-    li.querySelector('input').onchange=ev=>{r.include=ev.target.checked};
+    li.querySelector('input[type=checkbox]').onchange=ev=>{r.include=ev.target.checked};
+    li.querySelector('.imp-amt').onchange=ev=>{r.amt=Math.round(Math.abs(num(ev.target.value))*100)/100};
     li.querySelector('select').onchange=ev=>{r.cat=ev.target.value;r.learned=true};
     r.include=!r.credit;
     ul.appendChild(li);
@@ -1051,6 +1075,19 @@ function setupImport(){
   $('#imp-month').value=view;
   let fileText='';
   $('#imp-file').onchange=async ev=>{const f=ev.target.files&&ev.target.files[0];if(!f)return;fileText=await f.text();$('#imp-result').textContent=`Loaded ${f.name}. Tap Check.`};
+  $('#imp-img').onchange=async ev=>{
+    const f=ev.target.files&&ev.target.files[0];if(!f)return;
+    if(!window.GMM_STATIC){$('#imp-result').textContent='Reading screenshots works in the installed app, not here. Use a CSV or paste rows instead.';return}
+    $('#imp-result').textContent='Reading the image… this can take a minute the first time.';
+    try{
+      const text=await ocrImage(f,pc=>{$('#imp-result').textContent=`Reading the image… ${pc}%`});
+      impRows=parseOcr(text,$('#imp-month').value||view);
+      $('#imp-go').hidden=!impRows.length;
+      $('#imp-result').textContent=impRows.length?`Found ${impRows.length} rows. Check the dates, amounts and categories carefully, then import.`:'Could not find any rows with a date and an amount. Try a clearer, closer screenshot, or paste the rows as text.';
+      renderImport();
+    }catch(e){$('#imp-result').textContent='Could not read the image. Check your connection and try again, or paste the rows as text.'}
+    ev.target.value='';
+  };
   $('#imp-check').onclick=()=>{
     const txt=$('#imp-box').value.trim()||fileText;
     if(!txt){$('#imp-result').textContent='Choose a file or paste rows first.';return}
