@@ -293,7 +293,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
         <div class="sep"></div>
         <button type="button" data-go="plan|goals-h">Goals</button>
         <button type="button" data-go="plan|inv-h">Investments</button>
-        <button type="button" data-go="plan|hdb-h">HDB plan</button>
+        <button type="button" data-go="plan|hdb-h">Big purchase</button>
         <div class="sep"></div>
         <button type="button" data-go="history|hist-h">Last 12 months</button>
         <div class="sep"></div>
@@ -509,9 +509,10 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
         </form>
       </section>
   <section class="card" aria-labelledby="hdb-h">
-        <div class="card-head"><h2 id="hdb-h">HDB plan</h2><button class="btn small" id="hdb-edit-btn">Edit</button></div>
+        <div class="card-head"><h2 id="hdb-h">Big purchase plan</h2><button class="btn small" id="hdb-edit-btn">Edit</button></div>
         <div id="hdb-view"></div>
         <form class="form" id="hdb-form" hidden autocomplete="off" style="margin-top:12px">
+          <label for="h-name">What are you buying?<input id="h-name" placeholder="e.g. HDB flat, condo, car"></label>
           <label for="h-date">Payment month<input type="month" id="h-date"></label>
           <div class="row2">
             <label for="h-price">Price<input id="h-price" inputmode="decimal"></label>
@@ -519,11 +520,11 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
           </div>
           <div class="row2">
             <label for="h-loan">Loan or other funding<input id="h-loan" inputmode="decimal"></label>
-            <label for="h-oa">CPF OA now<input id="h-oa" inputmode="decimal"></label>
+            <label for="h-oa">CPF OA or other savings for it<input id="h-oa" inputmode="decimal"></label>
           </div>
           <div class="row2">
-            <label for="h-oam">OA added per month<input id="h-oam" inputmode="decimal"></label>
-            <label for="h-rate">OA interest (% a year)<input id="h-rate" inputmode="decimal"></label>
+            <label for="h-oam">Added to it per month<input id="h-oam" inputmode="decimal"></label>
+            <label for="h-rate">Interest on it (% a year)<input id="h-rate" inputmode="decimal"></label>
           </div>
           <div style="display:flex;gap:8px"><button class="btn primary small" type="submit">Save</button><button class="btn small" type="button" id="hdb-cancel">Cancel</button></div>
         </form>
@@ -755,7 +756,7 @@ function alertsFor(){
       if(r&&basis==='budget'&&r.fixed+r.variable>(p.fx+p.vb)*1.1) list.push(['warn','HABIT',`Last ${r.n} months averaged <b>${m0(r.fixed+r.variable)}</b>, budget is ${m0(p.fx+p.vb)}`]);
     }
   }
-  if(isCur){const hc=hdbCalc();if(hc&&hc.gap>0)list.push(['info','HDB',`<b>${m0(hc.gap)}</b> still to find by ${mkLabel(hc.date)}`+(hc.n>0?`, about ${m0(hc.per)} a month`:'')])}
+  if(isCur){const hc=hdbCalc();if(hc&&hc.gap>0)list.push(['info',(hc.h.name||'PURCHASE').slice(0,12).toUpperCase(),`<b>${m0(hc.gap)}</b> still to find by ${mkLabel(hc.date)}`+(hc.n>0?`, about ${m0(hc.per)} a month`:'')])}
   if(window.GMM_STATIC&&isCur){let last=0;try{last=+localStorage.getItem('gmm-last-backup')||0}catch(e){}if(Date.now()-last>30*DAY)list.push(['info','BACKUP','No backup in 30 days. Settings → Copy backup'])}
   if(!list.some(a=>a[0]==='bad'||a[0]==='warn')) list.unshift(['ok','CLEAR','All within budget']);
   return list;
@@ -1295,7 +1296,7 @@ function setupInvest(){
 /* ---------- hdb ---------- */
 function hdbCalc(){
   const h=docs.hdb; if(!h||!num(h.price)) return null;
-  const date=h.date||'2029-06', [y,m]=date.split('-').map(Number);
+  const date=h.date||mkAdd(CUR,12), [y,m]=date.split('-').map(Number);
   const n=Math.max(0,(y-TODAY.getFullYear())*12+(m-1-TODAY.getMonth()));
   const rate=(h.rate==null?2.5:num(h.rate))/1200;
   let oa=num(h.oa); for(let k=0;k<n;k++) oa=oa*(1+rate)+num(h.oaMonthly);
@@ -1305,25 +1306,25 @@ function hdbCalc(){
 }
 function renderHdb(){
   const c=hdbCalc(), box=$('#hdb-view');
-  if(!c){box.innerHTML='<div class="empty">Tap Edit and enter the price, your CPF OA and the payment month.</div>';return}
+  if(!c){box.innerHTML='<div class="empty">Saving for a flat, a car or another big purchase? Tap Edit and enter the price, what you have towards it, and the payment month.</div>';return}
   const r=c.need>0?Math.min(1,Math.max(0,c.have/c.need)):1;
-  box.innerHTML=`<div class="msum"><div><div class="eyebrow">Cash needed by ${mkLabel(c.date)}</div><span class="num">${m0(c.need)}</span></div><div style="text-align:right"><div class="eyebrow">You have</div><span class="num" style="font-size:1.1rem">${m0(c.have)}</span></div></div>
+  box.innerHTML=`<div class="msum"><div><div class="eyebrow">${c.h.name?c.h.name+' · ':''}Cash needed by ${mkLabel(c.date)}</div><span class="num">${m0(c.need)}</span></div><div style="text-align:right"><div class="eyebrow">You have</div><span class="num" style="font-size:1.1rem">${m0(c.have)}</span></div></div>
     <div class="bar" style="margin:10px 0 6px"><i style="width:${r*100}%;${c.gap<=0?'background:var(--ok)':''}"></i></div>
     <div class="small">${c.gap>0?`<b style="color:var(--bad)">${m0(c.gap)}</b> still to find${c.n>0?`, about <b>${m0(c.per)}</b> a month for ${c.n} months`:''}`:`<b style="color:var(--ok)">Covered</b>, with ${m0(-c.gap)} to spare`}</div>
-    <div class="small muted" style="margin-top:8px">Price ${m0(num(c.h.price))} − paid ${m0(num(c.h.paid))} − loan or other ${m0(num(c.h.loan))} − CPF OA ${m0(c.oa)} by then. You have = cash + investments, not locked.</div>`;
+    <div class="small muted" style="margin-top:8px">Price ${m0(num(c.h.price))} − paid ${m0(num(c.h.paid))} − loan or other ${m0(num(c.h.loan))} − savings for it ${m0(c.oa)} by then. You have = cash + investments, not locked.</div>`;
 }
 function setupHdb(){
   const f=$('#hdb-form');
   $('#hdb-edit-btn').onclick=()=>{
     const h=docs.hdb||{};
-    $('#h-date').value=h.date||'2029-06';$('#h-price').value=h.price??'';$('#h-paid').value=h.paid??'';$('#h-loan').value=h.loan??'';
+    $('#h-name').value=h.name||'';$('#h-date').value=h.date||'';$('#h-price').value=h.price??'';$('#h-paid').value=h.paid??'';$('#h-loan').value=h.loan??'';
     $('#h-oa').value=h.oa??'';$('#h-oam').value=h.oaMonthly??'';$('#h-rate').value=h.rate??2.5;f.hidden=false;
   };
   $('#hdb-cancel').onclick=()=>{f.hidden=true};
   f.addEventListener('submit',ev=>{
     ev.preventDefault();
-    save('hdb',{date:$('#h-date').value||'2029-06',price:num($('#h-price').value),paid:num($('#h-paid').value),loan:num($('#h-loan').value),oa:num($('#h-oa').value),oaMonthly:num($('#h-oam').value),rate:num($('#h-rate').value)});
-    f.hidden=true;toast('HDB plan saved.');
+    save('hdb',{name:$('#h-name').value.trim().slice(0,40),date:$('#h-date').value||mkAdd(CUR,12),price:num($('#h-price').value),paid:num($('#h-paid').value),loan:num($('#h-loan').value),oa:num($('#h-oa').value),oaMonthly:num($('#h-oam').value),rate:num($('#h-rate').value)});
+    f.hidden=true;toast('Plan saved.');
   });
 }
 
