@@ -344,8 +344,9 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
           </div>
           <label for="s-card">Card owed on start date (full bill)<input id="s-card" inputmode="decimal"></label>
           <label for="s-owed">Owed to me on start date<input id="s-owed" inputmode="decimal"></label>
+          <label for="s-hold">Holding for others (not my money)<input id="s-hold" inputmode="decimal"></label>
           <p class="hint" id="card-split"></p>
-          <p class="hint">Set these once. Do not change them when you pay the card or get paid back.</p>
+          <p class="hint">Set these once. Do not change them when you pay the card, get paid back, or hand over money you were holding.</p>
           <label for="s-floor">Cash floor<input id="s-floor" inputmode="decimal"></label>
           <label for="s-income">Monthly income (added automatically)<input id="s-income" inputmode="decimal"></label>
           <label for="s-inv">Investments (used only if no platforms are listed)<input id="s-inv" inputmode="decimal"></label>
@@ -724,7 +725,7 @@ function monthData(mk){
 }
 function cashNow(){
   const s=S(); if(!s||!s.openingMonth) return null;
-  let c=num(s.openingCash)-num(s.unpaidCard)+num(s.owedToMe);
+  let c=num(s.openingCash)-num(s.unpaidCard)+num(s.owedToMe)-num(s.holding);
   for(let mk=s.openingMonth;mk<=CUR;mk=mkAdd(mk,1)){const m=monthData(mk);c+=m.income-m.total}
   return c-bigSaved();
 }
@@ -853,6 +854,7 @@ function renderRunway(){
   }
   const cardFull=num(s.unpaidCard), owed=num(s.owedToMe);
   if(cardFull||owed){stats.push(['Card bill (full)',m0(cardFull),'']);stats.push(['Owed to me / my share',m0(owed)+' / '+m0(cardFull-owed),''])}
+  if(num(s.holding)) stats.push(['Holding for others',m0(num(s.holding)),'']);
   $('#r-stats').innerHTML=stats.map(([t,v,c])=>`<div><dt>${t}</dt><dd class="${c}">${v}</dd></div>`).join('');
   $('#ret-note').textContent=p.target&&p.needMonths>0?`${p.needMonths.toFixed(1)} months`:'';
   renderStrip(p);
@@ -1264,7 +1266,7 @@ function saveInvest(items,mk){
 }
 function cashAt(mk){
   const s=S(); if(!s||!s.openingMonth||mk<s.openingMonth) return null;
-  let c=num(s.openingCash)-num(s.unpaidCard)+num(s.owedToMe);
+  let c=num(s.openingCash)-num(s.unpaidCard)+num(s.owedToMe)-num(s.holding);
   for(let m=s.openingMonth;m<=mk&&m<=CUR;m=mkAdd(m,1)){const d=monthData(m);c+=d.income-d.total}
   return mk>=CUR?c-bigSaved():c;
 }
@@ -1477,7 +1479,7 @@ function fillSettings(force){
   if(settingsDirty&&!force) return;
   const s=S()||{};
   $('#s-cur').value=s.currency||'$';$('#s-cash').value=s.openingCash??'';$('#s-cash-month').value=s.openingMonth||CUR;
-  $('#s-card').value=s.unpaidCard??'';$('#s-owed').value=s.owedToMe??'';$('#s-floor').value=s.floor??'';$('#s-income').value=s.monthlyIncome??'';
+  $('#s-card').value=s.unpaidCard??'';$('#s-owed').value=s.owedToMe??'';$('#s-hold').value=s.holding??'';$('#s-floor').value=s.floor??'';$('#s-income').value=s.monthlyIncome??'';
   $('#s-inv').value=s.investments??'';$('#s-countinv').checked=!!s.countInvest;$('#s-warn').value=s.warnAt??80;
   fxDraft=clone({f:s.fixed||[]}).f;renderFx();
   $('#bgrid').innerHTML=CATS.map(c=>`<label for="b-${c.k}">${c.name}${isHidden(c.k)?' (paused)':''}<input id="b-${c.k}" inputmode="decimal" value="${(s.budgets&&s.budgets[c.k])??''}"></label>`).join('');
@@ -1513,7 +1515,7 @@ function setupSettings(){
     const budgets={};CATS.forEach(c=>budgets[c.k]=num($('#b-'+c.k).value));
     const s=Object.assign({},clone(prev),{
       currency:($('#s-cur').value.trim()||'$').slice(0,4),openingCash:num($('#s-cash').value),openingMonth:$('#s-cash-month').value||CUR,
-      unpaidCard:num($('#s-card').value),owedToMe:num($('#s-owed').value),floor:num($('#s-floor').value),monthlyIncome:num($('#s-income').value),
+      unpaidCard:num($('#s-card').value),owedToMe:num($('#s-owed').value),holding:num($('#s-hold').value),floor:num($('#s-floor').value),monthlyIncome:num($('#s-income').value),
       investments:num($('#s-inv').value),countInvest:$('#s-countinv').checked,
       warnAt:Math.min(100,Math.max(1,num($('#s-warn').value)||80)),
       fixed:fxDraft.filter(f=>(f.name||'').trim()||num(f.amt)).map(f=>({name:(f.name||'').trim().slice(0,60)||'Bill',amt:num(f.amt)})),
