@@ -72,6 +72,14 @@ label{display:grid;gap:4px;font-size:.85rem;color:var(--muted);min-width:0}
 .banner{font-size:.85rem;padding:8px 12px;border-radius:8px;background:var(--warn-soft);color:var(--warn)}
 
 /* alerts */
+.alerts-dd>summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.alerts-dd>summary::-webkit-details-marker{display:none}
+.alerts-dd>summary::after{content:"▾";color:var(--muted);font-size:1rem;margin-left:8px}
+.alerts-dd[open]>summary::after{content:"▴"}
+.alerts-dd>summary #alerts-sub{flex:1;text-align:right}
+.alerts-dd>summary .b{color:var(--bad);font-weight:600}
+.alerts-dd>summary .w{color:var(--warn);font-weight:600}
+.alerts-dd>summary .o{color:var(--ok);font-weight:600}
 .alerts{display:grid;gap:8px;margin:0;padding:0;list-style:none}
 .alert{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;padding:10px 14px;border-radius:8px;background:var(--sunk)}
 .pill{font-family:var(--f-mono);font-size:.68rem;font-weight:600;letter-spacing:.08em;padding:3px 8px;border-radius:999px;white-space:nowrap;margin-top:2px}
@@ -398,8 +406,10 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
 
   <div class="tab" id="tab-home">
   <section style="grid-column:1/-1" class="card" aria-labelledby="alerts-h">
-    <div class="card-head"><h2 id="alerts-h">Alerts</h2><span class="small muted" id="alerts-sub"></span></div>
-    <ul class="alerts" id="alerts"><li class="alert"><span class="pill info">LOADING</span><span>Loading your numbers…</span></li></ul>
+    <details id="alerts-dd" class="alerts-dd">
+      <summary><h2 id="alerts-h">Alerts</h2><span class="small" id="alerts-sub">Loading…</span></summary>
+      <ul class="alerts" id="alerts" style="margin-top:12px"><li class="alert"><span class="pill info">LOADING</span><span>Loading your numbers…</span></li></ul>
+    </details>
   </section>
   <section style="grid-column:1/-1" class="hero" aria-labelledby="runway-h">
     <div class="hero-main">
@@ -799,8 +809,9 @@ $('#alerts').addEventListener('click',ev=>{if(ev.target.id==='open-settings')ope
 function renderAlerts(){
   const list=alertsFor(), ul=$('#alerts');
   ul.innerHTML=list.map(([k,t,h])=>`<li class="alert"><span class="pill ${k}">${t}</span><span>${h}</span></li>`).join('');
-  const n=list.filter(a=>a[0]==='bad').length, w=list.filter(a=>a[0]==='warn').length;
-  $('#alerts-sub').textContent=mkLabel(view)+(n||w?` · ${n} urgent, ${w} to watch`:'');
+  const n=list.filter(a=>a[0]==='bad').length, w=list.filter(a=>a[0]==='warn').length, i=list.filter(a=>a[0]==='info').length;
+  const parts=[];if(n)parts.push(`<span class="b">${n} over</span>`);if(w)parts.push(`<span class="w">${w} to watch</span>`);if(i)parts.push(`${i} note${i>1?'s':''}`);
+  $('#alerts-sub').innerHTML=parts.length?parts.join(' · '):'<span class="o">All within budget</span>';
 }
 
 /* ---------- runway hero ---------- */
