@@ -349,7 +349,6 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
           <p class="hint">Set these once. Do not change them when you pay the card, get paid back, or hand over money you were holding.</p>
           <label for="s-floor">Cash floor<input id="s-floor" inputmode="decimal"></label>
           <label for="s-income">Monthly income (added automatically)<input id="s-income" inputmode="decimal"></label>
-          <label for="s-steady">Steady part of income (always comes)<input id="s-steady" inputmode="decimal" placeholder="0"></label>
           <label for="s-inv">Investments (used only if no platforms are listed)<input id="s-inv" inputmode="decimal"></label>
           <label class="check" for="s-countinv"><input type="checkbox" id="s-countinv">Count in runway</label>
         </section>
@@ -466,7 +465,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
         <div class="card-head"><h2 id="log-h">Log spending</h2>
           <div class="typeseg" role="group" aria-label="Entry type">
             <button type="button" id="t-exp" aria-pressed="true">Spent</button>
-            <button type="button" id="t-inc" aria-pressed="false">Extra income</button>
+            <button type="button" id="t-inc" aria-pressed="false">Bonus / extra income</button>
           </div>
         </div>
         <form class="form" id="log-form" autocomplete="off">
@@ -761,7 +760,7 @@ function project(b){
   const after=burn>0?pool/burn:Infinity;
   const afterInv=burn>0?(spendable+inv)/burn:Infinity;
   const toDate=m=>isFinite(m)?new Date(eom.getTime()+m*MLEN*DAY):null;
-  const steady=Math.min(num(s.steadyIncome),income), noBurn=fx+vb-steady;
+  const steady=0, noBurn=fx+vb;
   const noInc=noBurn>0?Math.max(0,pool)/noBurn:Infinity;
   const out={now,remain,burn,fx,vb,spendable,pool,inv,countInv,income,eom,noInc,noIncDate:toDate(noInc),steady,
     monthsLeft:after===Infinity?Infinity:Math.max(0,fracLeft+after),
@@ -1490,7 +1489,7 @@ function fillSettings(force){
   if(settingsDirty&&!force) return;
   const s=S()||{};
   $('#s-cur').value=s.currency||'$';$('#s-cash').value=s.openingCash??'';$('#s-cash-month').value=s.openingMonth||CUR;
-  $('#s-card').value=s.unpaidCard??'';$('#s-owed').value=s.owedToMe??'';$('#s-hold').value=s.holding??'';$('#s-floor').value=s.floor??'';$('#s-income').value=s.monthlyIncome??'';$('#s-steady').value=s.steadyIncome??'';
+  $('#s-card').value=s.unpaidCard??'';$('#s-owed').value=s.owedToMe??'';$('#s-hold').value=s.holding??'';$('#s-floor').value=s.floor??'';$('#s-income').value=s.monthlyIncome??'';
   $('#s-inv').value=s.investments??'';$('#s-countinv').checked=!!s.countInvest;$('#s-warn').value=s.warnAt??80;
   fxDraft=clone({f:s.fixed||[]}).f;renderFx();
   $('#bgrid').innerHTML=CATS.map(c=>`<label for="b-${c.k}">${c.name}${isHidden(c.k)?' (paused)':''}<input id="b-${c.k}" inputmode="decimal" value="${(s.budgets&&s.budgets[c.k])??''}"></label>`).join('');
@@ -1526,7 +1525,7 @@ function setupSettings(){
     const budgets={};CATS.forEach(c=>budgets[c.k]=num($('#b-'+c.k).value));
     const s=Object.assign({},clone(prev),{
       currency:($('#s-cur').value.trim()||'$').slice(0,4),openingCash:num($('#s-cash').value),openingMonth:$('#s-cash-month').value||CUR,
-      unpaidCard:num($('#s-card').value),owedToMe:num($('#s-owed').value),holding:num($('#s-hold').value),floor:num($('#s-floor').value),monthlyIncome:num($('#s-income').value),steadyIncome:Math.min(num($('#s-steady').value),num($('#s-income').value)),
+      unpaidCard:num($('#s-card').value),owedToMe:num($('#s-owed').value),holding:num($('#s-hold').value),floor:num($('#s-floor').value),monthlyIncome:num($('#s-income').value),
       investments:num($('#s-inv').value),countInvest:$('#s-countinv').checked,
       warnAt:Math.min(100,Math.max(1,num($('#s-warn').value)||80)),
       fixed:fxDraft.filter(f=>(f.name||'').trim()||num(f.amt)).map(f=>({name:(f.name||'').trim().slice(0,60)||'Bill',amt:num(f.amt)})),
