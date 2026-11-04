@@ -760,7 +760,8 @@ function project(b){
   const after=burn>0?pool/burn:Infinity;
   const afterInv=burn>0?(spendable+inv)/burn:Infinity;
   const toDate=m=>isFinite(m)?new Date(eom.getTime()+m*MLEN*DAY):null;
-  const out={now,remain,burn,fx,vb,spendable,pool,inv,countInv,income,eom,
+  const noInc=fx+vb>0?Math.max(0,pool)/(fx+vb):Infinity;
+  const out={now,remain,burn,fx,vb,spendable,pool,inv,countInv,income,eom,noInc,noIncDate:toDate(noInc),
     monthsLeft:after===Infinity?Infinity:Math.max(0,fracLeft+after),
     endDate:toDate(after), invEndDate:countInv?null:toDate(afterInv), basisUsed:useRecent?'recent':'budget', rN:r&&r.n};
   if(s.breakEnd){
@@ -831,13 +832,14 @@ function renderRunway(){
     $('#r-sentence').textContent='Fill in Settings to start.';
     $('#r-stats').innerHTML='';$('#strip').innerHTML='';$('#ret-note').textContent='';return;
   }
-  const ml=p.monthsLeft;
-  const far=ml!==Infinity&&ml>60;
-  $('#r-months').textContent=ml===Infinity?'+'+m0(-p.burn):far?'5+':ml.toFixed(1);
-  $('#r-unit').textContent=ml===Infinity?'/month':far?'years':(Math.abs(ml-1)<.05?'month':'months');
+  const ml=p.monthsLeft, covered=ml===Infinity;
+  const show=covered?p.noInc:ml;
+  const far=show!==Infinity&&show>60;
+  $('#r-months').textContent=show===Infinity?'∞':far?'5+':show.toFixed(1);
+  $('#r-unit').textContent=far?'years':(Math.abs(show-1)<.05?'month':'months')+(covered?' without income':'');
   const basisTxt=p.basisUsed==='recent'?`your recent pace of ${m0(p.burn+p.income)}/month`:`your budget of ${m0(p.burn+p.income)}/month`;
   let sent;
-  if(ml===Infinity) sent='Growing. Income covers spending.';
+  if(ml===Infinity) sent=`Income covers spending, <b>+${m0(-p.burn)}</b> a month spare. If income stopped, cash above the floor lasts until about <b>${fmtMonthYr(p.noIncDate)}</b>.`;
   else if(p.pool<0) sent='Cash is below your floor.';
   else if(far) sent=`You spend ${m0(p.burn)} a month more than you earn. At that rate cash lasts over 5 years, if you keep exactly to budget.`;
   else sent=`You spend ${m0(p.burn)} a month more than you earn. Cash lasts until about <b>${fmtMonthYr(p.endDate)}</b>.`;
@@ -850,7 +852,7 @@ function renderRunway(){
     ['Net per month',(p.burn<0?'+':'')+m0(-p.burn),p.burn<=0?'good':'bad'],
     ['Left this month',m0(p.remain),''],
   ];
-  if(p.income>0&&p.fx+p.vb>0){const mNo=Math.max(0,p.pool)/(p.fx+p.vb);stats.push(['If income stops',mNo>60?'5+ years':mNo.toFixed(1)+' months',mNo<6?'bad':''])}
+
   if(p.target&&p.needMonths>0){
     stats.push(['Safe spend',p.safe>0?m0(p.safe):m0(0),p.safe>=p.burn+p.income?'good':'bad']);
     stats.push([p.gap>0?'Shortfall':'Spare',m0(Math.abs(p.gap)),p.gap>0?'bad':'good']);
