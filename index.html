@@ -13,7 +13,7 @@
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif;background:#0A0A0A}img{max-width:100%}[hidden]{display:none!important}</style>
-<script>window.GMM_STATIC = true; window.GMM_BUILD = "2026-11-04.1";
+<script>window.GMM_STATIC = true; window.GMM_BUILD = "2026-11-04.2";
 if("serviceWorker" in navigator) addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 if(navigator.storage&&navigator.storage.persist) navigator.storage.persist().catch(()=>{});</script>
 </head>
@@ -349,7 +349,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
           <p class="hint">Set these once. Do not change them when you pay the card, get paid back, or hand over money you were holding.</p>
           <label for="s-floor">Cash floor<input id="s-floor" inputmode="decimal"></label>
           <label for="s-income">Monthly income (added automatically)<input id="s-income" inputmode="decimal"></label>
-          <label for="s-steady">Income the runway counts on (blank = same)<input id="s-steady" inputmode="decimal"></label>
+          <label for="s-steady">Guaranteed income, used for runway (blank = same)<input id="s-steady" inputmode="decimal"></label>
           <label for="s-inv">Investments (used only if no platforms are listed)<input id="s-inv" inputmode="decimal"></label>
           <label class="check" for="s-countinv"><input type="checkbox" id="s-countinv">Count in runway</label>
         </section>
