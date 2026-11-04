@@ -390,9 +390,14 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
       </section>
       <section>
         <h3>Backup</h3>
-        <p class="hint">Copy on one device, paste on another.</p>
-        <button type="button" class="btn small" id="bk-copy" style="justify-self:start">Copy backup</button>
-        <label for="bk-box">Paste backup<textarea id="bk-box"></textarea></label>
+        <p class="hint" id="bk-auto">A backup file is saved to Downloads every 7 days when you save a change.</p>
+        <div class="row" style="display:flex;gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn small" id="bk-share">Share backup</button>
+          <button type="button" class="btn small" id="bk-file">Save file</button>
+          <button type="button" class="btn small" id="bk-copy">Copy</button>
+        </div>
+        <label class="btn small" for="bk-load" style="justify-self:start">Load backup file<input type="file" id="bk-load" accept=".json,application/json" hidden></label>
+        <label for="bk-box">Or paste backup<textarea id="bk-box"></textarea></label>
         <button type="button" class="btn small" id="bk-restore" style="justify-self:start">Restore</button>
         <p class="hint" id="bk-result"></p>
       </section>
@@ -655,7 +660,7 @@ let basis='budget'; try{basis=localStorage.getItem('runway-basis')||'budget'}cat
 const queues={};
 function save(id,data){
   docs[id]=data; render();
-  if(mode==='local'){saveLocal();return Promise.resolve()}
+  if(mode==='local'){saveLocal();autoBackup();return Promise.resolve()}
   if(mode!=='db'){return Promise.resolve()}
   queues[id]=(queues[id]||Promise.resolve()).then(()=>col.doc(id).set(data)).catch(e=>{
     toast(e&&e.code==='quota_exceeded'?'Storage is full. Delete old entries or goals, then try again.':'That change did not save. Check your connection and try again.');
@@ -801,7 +806,7 @@ function alertsFor(){
     }
   }
   if(isCur){const hc=hdbCalc();if(hc&&hc.gap>0)list.push(['info',(hc.h.name||'PURCHASE').slice(0,12).toUpperCase(),`<b>${m0(hc.gap)}</b> still to find by ${mkLabel(hc.date)}`+(hc.n>0?`, about ${m0(hc.per)} a month`:'')])}
-  if(window.GMM_STATIC&&isCur){let last=0;try{last=+localStorage.getItem('gmm-last-backup')||0}catch(e){}if(Date.now()-last>30*DAY)list.push(['info','BACKUP','No backup in 30 days. Settings → Copy backup'])}
+  if(window.GMM_STATIC&&isCur){let last=0;try{last=+localStorage.getItem('gmm-last-backup')||0}catch(e){}if(Date.now()-last>14*DAY)list.push(['info','BACKUP','No backup in 14 days. Settings → Backup → Share'])}
   if(!list.some(a=>a[0]==='bad'||a[0]==='warn')) list.unshift(['ok','CLEAR','All within budget']);
   return list;
 }
@@ -1552,22 +1557,50 @@ function setupSettings(){
     catch(e){const b=$('#x-box');b.hidden=false;b.value=tsv;b.focus();b.select();$('#x-result').textContent='Copy was blocked here, so the grid is selected above. Press Cmd+C (or Ctrl+C) to copy it.'}
   };
 }
+const backupText=()=>JSON.stringify({app:'grow-my-money',v:1,docs});
+const backupName=()=>'grow-my-money-'+isoToday()+'.json';
+function markBackup(){try{localStorage.setItem('gmm-last-backup',String(Date.now()))}catch(e){}}
+function lastBackup(){try{return +localStorage.getItem('gmm-last-backup')||0}catch(e){return 0}}
+function backupFile(){
+  const a=document.createElement('a');a.href='data:application/json;charset=utf-8,'+encodeURIComponent(backupText());a.download=backupName();
+  document.body.appendChild(a);a.click();a.remove();markBackup();
+}
+async function backupShare(){
+  const txt=backupText();
+  try{
+    const f=new File([txt],backupName(),{type:'application/json'});
+    if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:'Grow My Money backup'});markBackup();return true}
+    if(navigator.share){await navigator.share({title:'Grow My Money backup',text:txt});markBackup();return true}
+  }catch(e){if(e&&e.name==='AbortError')return false}
+  return false;
+}
+function autoBackup(){
+  if(!window.GMM_STATIC||!S()) return;
+  if(Date.now()-lastBackup()<7*DAY) return;
+  try{backupFile();toast('Backup saved to Downloads.','Share',()=>backupShare())}catch(e){}
+}
 function setupBackup(){
   let armed=false;
+  if(!window.GMM_STATIC){$('#bk-share').hidden=true;$('#bk-file').hidden=true;$('#bk-auto').hidden=true}
   $('#bk-copy').onclick=async()=>{
-    const txt=JSON.stringify({app:'grow-my-money',v:1,docs});
-    try{localStorage.setItem('gmm-last-backup',String(Date.now()))}catch(e){}
+    const txt=backupText();markBackup();
     try{await navigator.clipboard.writeText(txt);$('#bk-result').textContent='Copied.'}
     catch(e){const b=$('#bk-box');b.value=txt;b.focus();b.select();$('#bk-result').textContent='Select all and copy.'}
   };
-  $('#bk-restore').onclick=()=>{
-    let d=null;try{d=JSON.parse($('#bk-box').value)}catch(e){}
+  $('#bk-file').onclick=()=>{backupFile();$('#bk-result').textContent='Saved to Downloads.'};
+  $('#bk-share').onclick=async()=>{const ok=await backupShare();$('#bk-result').textContent=ok?'Shared.':'Sharing is not available here. Use Save file.'};
+  const restore=d=>{
     if(!d||d.app!=='grow-my-money'||!d.docs||typeof d.docs!=='object'){armed=false;$('#bk-restore').textContent='Restore';$('#bk-result').textContent='That is not a backup.';return}
-    if(!armed){armed=true;$('#bk-restore').textContent='Replace my data';$('#bk-result').textContent='This overwrites the data here. Tap again to confirm.';return}
+    if(!armed){armed=true;$('#bk-restore').textContent='Replace my data';$('#bk-result').textContent='This overwrites the data here. Tap Restore again to confirm.';return}
     armed=false;$('#bk-restore').textContent='Restore';
     Object.keys(d.docs).forEach(id=>{if(/^(settings|history|goals|invest|hdb|m-\d{4}-\d{2})$/.test(id)&&d.docs[id]&&typeof d.docs[id]==='object')save(id,d.docs[id])});
-    try{localStorage.setItem('gmm-last-backup',String(Date.now()))}catch(e){}
-    settingsDirty=false;fillSettings(true);$('#bk-box').value='';$('#bk-result').textContent='Restored.';
+    markBackup();
+    settingsDirty=false;fillSettings(true);$('#bk-box').value='';$('#bk-load').value='';$('#bk-result').textContent='Restored.';
+  };
+  $('#bk-restore').onclick=()=>{let d=null;try{d=JSON.parse($('#bk-box').value)}catch(e){}restore(d)};
+  $('#bk-load').onchange=()=>{
+    const f=$('#bk-load').files[0];if(!f)return;
+    const r=new FileReader();r.onload=()=>{$('#bk-box').value=String(r.result||'');armed=false;$('#bk-restore').textContent='Restore';$('#bk-result').textContent='File loaded. Tap Restore.'};r.readAsText(f);
   };
 }
 function setupPin(){
