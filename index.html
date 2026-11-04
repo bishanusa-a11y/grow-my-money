@@ -349,6 +349,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
           <p class="hint">Set these once. Do not change them when you pay the card, get paid back, or hand over money you were holding.</p>
           <label for="s-floor">Cash floor<input id="s-floor" inputmode="decimal"></label>
           <label for="s-income">Monthly income (added automatically)<input id="s-income" inputmode="decimal"></label>
+          <label for="s-steady">Income the runway counts on (blank = same)<input id="s-steady" inputmode="decimal"></label>
           <label for="s-inv">Investments (used only if no platforms are listed)<input id="s-inv" inputmode="decimal"></label>
           <label class="check" for="s-countinv"><input type="checkbox" id="s-countinv">Count in runway</label>
         </section>
@@ -760,7 +761,7 @@ function project(b){
   const after=burn>0?pool/burn:Infinity;
   const afterInv=burn>0?(spendable+inv)/burn:Infinity;
   const toDate=m=>isFinite(m)?new Date(eom.getTime()+m*MLEN*DAY):null;
-  const steady=0, noBurn=fx+vb;
+  const steady=s.steadyIncome==null?income:Math.min(num(s.steadyIncome),income), noBurn=fx+vb-steady;
   const noInc=noBurn>0?Math.max(0,pool)/noBurn:Infinity;
   const out={now,remain,burn,fx,vb,spendable,pool,inv,countInv,income,eom,noInc,noIncDate:toDate(noInc),steady,
     monthsLeft:after===Infinity?Infinity:Math.max(0,fracLeft+after),
@@ -837,11 +838,11 @@ function renderRunway(){
   const show=covered?p.noInc:ml;
   const far=show!==Infinity&&show>60;
   $('#r-months').textContent=show===Infinity?'∞':far?'5+':show.toFixed(1);
-  $('#r-unit').textContent=far?'years':(Math.abs(show-1)<.05?'month':'months')+(covered?(p.steady>0?' on steady income':' without income'):'');
+  $('#r-unit').textContent=far?'years':(Math.abs(show-1)<.05?'month':'months')+(covered?(p.steady>0?' on '+m0(p.steady)+' income':' without income'):'');
   const basisTxt=p.basisUsed==='recent'?`your recent pace of ${m0(p.burn+p.income)}/month`:`your budget of ${m0(p.burn+p.income)}/month`;
   let sent;
-  if(ml===Infinity) sent=p.noInc===Infinity?`Income covers spending, <b>+${m0(-p.burn)}</b> a month spare. Even on the steady ${m0(p.steady)} alone, cash keeps growing.`
-    :`Income covers spending, <b>+${m0(-p.burn)}</b> a month spare. On ${p.steady>0?'the steady '+m0(p.steady)+' alone':'no income'}, cash above the floor lasts until about <b>${fmtMonthYr(p.noIncDate)}</b>.`;
+  if(ml===Infinity) sent=p.noInc===Infinity?`Income covers spending, <b>+${m0(-p.burn)}</b> a month spare. Cash keeps growing.`
+    :`On ${m0(p.income)} income you have <b>+${m0(-p.burn)}</b> a month spare. On ${p.steady>0?m0(p.steady)+' income':'no income'}, cash above the floor lasts until about <b>${fmtMonthYr(p.noIncDate)}</b>.`;
   else if(p.pool<0) sent='Cash is below your floor.';
   else if(far) sent=`You spend ${m0(p.burn)} a month more than you earn. At that rate cash lasts over 5 years, if you keep exactly to budget.`;
   else sent=`You spend ${m0(p.burn)} a month more than you earn. Cash lasts until about <b>${fmtMonthYr(p.endDate)}</b>.`;
@@ -1489,7 +1490,7 @@ function fillSettings(force){
   if(settingsDirty&&!force) return;
   const s=S()||{};
   $('#s-cur').value=s.currency||'$';$('#s-cash').value=s.openingCash??'';$('#s-cash-month').value=s.openingMonth||CUR;
-  $('#s-card').value=s.unpaidCard??'';$('#s-owed').value=s.owedToMe??'';$('#s-hold').value=s.holding??'';$('#s-floor').value=s.floor??'';$('#s-income').value=s.monthlyIncome??'';
+  $('#s-card').value=s.unpaidCard??'';$('#s-owed').value=s.owedToMe??'';$('#s-hold').value=s.holding??'';$('#s-floor').value=s.floor??'';$('#s-income').value=s.monthlyIncome??'';$('#s-steady').value=s.steadyIncome??'';
   $('#s-inv').value=s.investments??'';$('#s-countinv').checked=!!s.countInvest;$('#s-warn').value=s.warnAt??80;
   fxDraft=clone({f:s.fixed||[]}).f;renderFx();
   $('#bgrid').innerHTML=CATS.map(c=>`<label for="b-${c.k}">${c.name}${isHidden(c.k)?' (paused)':''}<input id="b-${c.k}" inputmode="decimal" value="${(s.budgets&&s.budgets[c.k])??''}"></label>`).join('');
@@ -1525,7 +1526,7 @@ function setupSettings(){
     const budgets={};CATS.forEach(c=>budgets[c.k]=num($('#b-'+c.k).value));
     const s=Object.assign({},clone(prev),{
       currency:($('#s-cur').value.trim()||'$').slice(0,4),openingCash:num($('#s-cash').value),openingMonth:$('#s-cash-month').value||CUR,
-      unpaidCard:num($('#s-card').value),owedToMe:num($('#s-owed').value),holding:num($('#s-hold').value),floor:num($('#s-floor').value),monthlyIncome:num($('#s-income').value),
+      unpaidCard:num($('#s-card').value),owedToMe:num($('#s-owed').value),holding:num($('#s-hold').value),floor:num($('#s-floor').value),monthlyIncome:num($('#s-income').value),steadyIncome:$('#s-steady').value.trim()===''?null:Math.min(num($('#s-steady').value),num($('#s-income').value)),
       investments:num($('#s-inv').value),countInvest:$('#s-countinv').checked,
       warnAt:Math.min(100,Math.max(1,num($('#s-warn').value)||80)),
       fixed:fxDraft.filter(f=>(f.name||'').trim()||num(f.amt)).map(f=>({name:(f.name||'').trim().slice(0,60)||'Bill',amt:num(f.amt)})),
