@@ -850,6 +850,7 @@ function renderRunway(){
     ['Net per month',(p.burn<0?'+':'')+m0(-p.burn),p.burn<=0?'good':'bad'],
     ['Left this month',m0(p.remain),''],
   ];
+  if(p.income>0&&p.fx+p.vb>0){const mNo=Math.max(0,p.pool)/(p.fx+p.vb);stats.push(['If income stops',mNo>60?'5+ years':mNo.toFixed(1)+' months',mNo<6?'bad':''])}
   if(p.target&&p.needMonths>0){
     stats.push(['Safe spend',p.safe>0?m0(p.safe):m0(0),p.safe>=p.burn+p.income?'good':'bad']);
     stats.push([p.gap>0?'Shortfall':'Spare',m0(Math.abs(p.gap)),p.gap>0?'bad':'good']);
