@@ -13,7 +13,7 @@
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif;background:#0A0A0A}img{max-width:100%}[hidden]{display:none!important}</style>
-<script>window.GMM_STATIC = true;
+<script>window.GMM_STATIC = true; window.GMM_BUILD = "2026-11-04.1";
 if("serviceWorker" in navigator) addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 if(navigator.storage&&navigator.storage.persist) navigator.storage.persist().catch(()=>{});</script>
 </head>
@@ -401,6 +401,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
         <label for="bk-box">Or paste backup<textarea id="bk-box"></textarea></label>
         <button type="button" class="btn small" id="bk-restore" style="justify-self:start">Restore</button>
         <p class="hint" id="bk-result"></p>
+        <p class="hint" id="app-build"></p>
       </section>
       <section>
         <h3>PIN lock</h3>
@@ -1588,6 +1589,7 @@ function autoBackup(){
 function setupBackup(){
   let armed=false;
   if(!window.GMM_STATIC){$('#bk-share').hidden=true;$('#bk-file').hidden=true;$('#bk-auto').hidden=true}
+  $('#app-build').textContent='Version '+(window.GMM_BUILD||'web');
   $('#bk-copy').onclick=async()=>{
     const txt=backupText();markBackup();
     try{await navigator.clipboard.writeText(txt);$('#bk-result').textContent='Copied.'}
