@@ -13,7 +13,7 @@
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif;background:#0A0A0A}img{max-width:100%}[hidden]{display:none!important}</style>
-<script>window.GMM_STATIC = true; window.GMM_BUILD = "2026-11-05.3";
+<script>window.GMM_STATIC = true; window.GMM_BUILD = "2026-11-05.4";
 if("serviceWorker" in navigator) addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 if(navigator.storage&&navigator.storage.persist) navigator.storage.persist().catch(()=>{});</script>
 </head>
@@ -304,7 +304,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
       <button class="iconbtn" id="prev" aria-label="Previous month">‹</button>
       <span class="lbl" id="mlabel">—</span>
       <button class="iconbtn" id="next" aria-label="Next month">›</button>
-      <button class="btn primary" id="jump-log" style="margin-left:8px">Log spending</button>
+      <button class="btn primary" id="jump-log" style="margin-left:8px">Log money</button>
       <button class="iconbtn" id="menu-btn" aria-label="Menu" aria-expanded="false" aria-haspopup="true" title="Menu">⋮</button>
       <div class="menu" id="menu" hidden role="menu">
         <button type="button" data-go="home|alerts-h">Alerts</button>
@@ -312,7 +312,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
         <button type="button" data-go="home|cf-h">Cash flow</button>
         <button type="button" data-go="home|month-h">This month</button>
         <div class="sep"></div>
-        <button type="button" data-go="log|log-h">Log spending</button>
+        <button type="button" data-go="log|log-h">Log money</button>
         <button type="button" data-go="log|entries-h">Spending log</button>
         <button type="button" data-go="log|imp-h">Import statement</button>
         <div class="sep"></div>
@@ -464,7 +464,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
   </div>
   <div class="tab" id="tab-log" hidden>
   <section class="card" aria-labelledby="log-h" id="log-card">
-        <div class="card-head"><h2 id="log-h">Log spending</h2>
+        <div class="card-head"><h2 id="log-h">Log money</h2>
           <div class="typeseg" role="group" aria-label="Entry type">
             <button type="button" id="t-exp" aria-pressed="true">Spent</button>
             <button type="button" id="t-inc" aria-pressed="false">Bonus / extra income</button>
