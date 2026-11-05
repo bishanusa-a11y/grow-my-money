@@ -13,7 +13,7 @@
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif;background:#0A0A0A}img{max-width:100%}[hidden]{display:none!important}</style>
-<script>window.GMM_STATIC = true; window.GMM_BUILD = "2026-11-05.1";
+<script>window.GMM_STATIC = true; window.GMM_BUILD = "2026-11-05.2";
 if("serviceWorker" in navigator) addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 if(navigator.storage&&navigator.storage.persist) navigator.storage.persist().catch(()=>{});</script>
 </head>
@@ -339,7 +339,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
           <h3>Cash</h3>
           <label for="s-cur">Currency symbol (e.g. $, S$, RM, €)<input id="s-cur" maxlength="4"></label>
           <div class="row2">
-            <label for="s-cash">Starting cash<input id="s-cash" inputmode="decimal"></label>
+            <label for="s-cash">Starting cash (bank balance minus money set aside in goals)<input id="s-cash" inputmode="decimal"></label>
             <label for="s-cash-month">Month<input type="month" id="s-cash-month"></label>
           </div>
           <label for="s-card">Card owed on start date (full bill)<input id="s-card" inputmode="decimal"></label>
