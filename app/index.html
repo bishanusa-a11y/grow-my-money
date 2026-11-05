@@ -13,7 +13,7 @@
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif;background:#0A0A0A}img{max-width:100%}[hidden]{display:none!important}</style>
-<script>window.GMM_STATIC = true; window.GMM_BUILD = "2026-11-04.3";
+<script>window.GMM_STATIC = true; window.GMM_BUILD = "2026-11-05.1";
 if("serviceWorker" in navigator) addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 if(navigator.storage&&navigator.storage.persist) navigator.storage.persist().catch(()=>{});</script>
 </head>
@@ -349,7 +349,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
           <p class="hint">Set these once. Do not change them when you pay the card, get paid back, or hand over money you were holding.</p>
           <label for="s-floor">Cash floor<input id="s-floor" inputmode="decimal"></label>
           <label for="s-income">Monthly income (added automatically)<input id="s-income" inputmode="decimal"></label>
-          <label for="s-steady">Extra bonus or income that may stop<input id="s-steady" inputmode="decimal" placeholder="0"></label>
+          <label for="s-steady">Extra bonus or income expected (not added automatically)<input id="s-steady" inputmode="decimal" placeholder="0"></label>
           <label for="s-inv">Investments (used only if no platforms are listed)<input id="s-inv" inputmode="decimal"></label>
           <label class="check" for="s-countinv"><input type="checkbox" id="s-countinv">Count in runway</label>
         </section>
@@ -762,9 +762,8 @@ function project(b){
   const after=burn>0?pool/burn:Infinity;
   const afterInv=burn>0?(spendable+inv)/burn:Infinity;
   const toDate=m=>isFinite(m)?new Date(eom.getTime()+m*MLEN*DAY):null;
-  const steady=income-Math.min(num(s.variableIncome),income), noBurn=fx+vb-steady;
-  const noInc=noBurn>0?Math.max(0,pool)/noBurn:Infinity;
-  const out={now,remain,burn,fx,vb,spendable,pool,inv,countInv,income,eom,noInc,noIncDate:toDate(noInc),steady,
+  const extra=num(s.variableIncome), plan=burn-extra;
+  const out={now,remain,burn,fx,vb,spendable,pool,inv,countInv,income,eom,extra,plan,
     monthsLeft:after===Infinity?Infinity:Math.max(0,fracLeft+after),
     endDate:toDate(after), invEndDate:countInv?null:toDate(afterInv), basisUsed:useRecent?'recent':'budget', rN:r&&r.n};
   if(s.breakEnd){
@@ -835,27 +834,27 @@ function renderRunway(){
     $('#r-sentence').textContent='Fill in Settings to start.';
     $('#r-stats').innerHTML='';$('#strip').innerHTML='';$('#ret-note').textContent='';return;
   }
-  const ml=p.monthsLeft, covered=ml===Infinity;
-  const show=covered?p.noInc:ml;
-  const far=show!==Infinity&&show>60;
-  $('#r-months').textContent=show===Infinity?'∞':far?'5+':show.toFixed(1);
-  $('#r-unit').textContent=far?'years':(Math.abs(show-1)<.05?'month':'months')+(covered?(p.steady>0?' on '+m0(p.steady)+' income':' without income'):'');
+  const ml=p.monthsLeft;
+  const far=ml!==Infinity&&ml>60;
+  $('#r-months').textContent=ml===Infinity?'∞':far?'5+':ml.toFixed(1);
+  $('#r-unit').textContent=far?'years':(Math.abs(ml-1)<.05?'month':'months')+(p.extra>0?' on '+m0(p.income)+' income':'');
   const basisTxt=p.basisUsed==='recent'?`your recent pace of ${m0(p.burn+p.income)}/month`:`your budget of ${m0(p.burn+p.income)}/month`;
   let sent;
-  if(ml===Infinity) sent=p.noInc===Infinity?`Income covers spending, <b>+${m0(-p.burn)}</b> a month spare. Cash keeps growing.`
-    :`On ${m0(p.income)} income you have <b>+${m0(-p.burn)}</b> a month spare. On ${p.steady>0?m0(p.steady)+' income':'no income'}, cash above the floor lasts until about <b>${fmtMonthYr(p.noIncDate)}</b>.`;
+  const extraTxt=p.extra>0?` With the extra ${m0(p.extra)}: ${p.plan<=0?'<b>+'+m0(-p.plan)+'</b> a month spare':'<b>'+m0(p.plan)+'</b> a month short'}.`:'';
+  if(ml===Infinity) sent=`Income covers spending, <b>+${m0(-p.burn)}</b> a month spare. Cash keeps growing.`;
   else if(p.pool<0) sent='Cash is below your floor.';
-  else if(far) sent=`You spend ${m0(p.burn)} a month more than you earn. At that rate cash lasts over 5 years, if you keep exactly to budget.`;
-  else sent=`You spend ${m0(p.burn)} a month more than you earn. Cash lasts until about <b>${fmtMonthYr(p.endDate)}</b>.`;
+  else if(far) sent=`On ${m0(p.income)} a month you spend ${m0(p.burn)} more than you earn. Cash lasts over 5 years.`+extraTxt;
+  else sent=`On ${m0(p.income)} a month you spend ${m0(p.burn)} more than you earn. Cash lasts until about <b>${fmtMonthYr(p.endDate)}</b>.`+extraTxt;
   if(basis==='recent'&&p.basisUsed!=='recent') sent+='';
   if(!far&&p.invEndDate&&p.inv>0) sent+=` With investments: ${fmtMonthYr(p.invEndDate)}.`;
   $('#r-sentence').innerHTML=sent;
   const stats=[
     ['Cash',m0(p.now),''],
     ['Set aside for goals',m0(goalsSaved()),''],
-    ['Net per month',(p.burn<0?'+':'')+m0(-p.burn),p.burn<=0?'good':'bad'],
+    ['Net per month',(p.plan<0?'+':'')+m0(-p.plan),p.plan<=0?'good':'bad'],
     ['Left this month',m0(p.remain),''],
   ];
+  if(p.extra>0) stats.splice(3,0,['Net without extra',(p.burn<0?'+':'')+m0(-p.burn),p.burn<=0?'good':'bad']);
 
   if(p.target&&p.needMonths>0){
     stats.push(['Safe spend',p.safe>0?m0(p.safe):m0(0),p.safe>=p.burn+p.income?'good':'bad']);
@@ -1527,7 +1526,7 @@ function setupSettings(){
     const budgets={};CATS.forEach(c=>budgets[c.k]=num($('#b-'+c.k).value));
     const s=Object.assign({},clone(prev),{
       currency:($('#s-cur').value.trim()||'$').slice(0,4),openingCash:num($('#s-cash').value),openingMonth:$('#s-cash-month').value||CUR,
-      unpaidCard:num($('#s-card').value),owedToMe:num($('#s-owed').value),holding:num($('#s-hold').value),floor:num($('#s-floor').value),monthlyIncome:num($('#s-income').value),variableIncome:Math.min(num($('#s-steady').value),num($('#s-income').value)),
+      unpaidCard:num($('#s-card').value),owedToMe:num($('#s-owed').value),holding:num($('#s-hold').value),floor:num($('#s-floor').value),monthlyIncome:num($('#s-income').value),variableIncome:num($('#s-steady').value),
       investments:num($('#s-inv').value),countInvest:$('#s-countinv').checked,
       warnAt:Math.min(100,Math.max(1,num($('#s-warn').value)||80)),
       fixed:fxDraft.filter(f=>(f.name||'').trim()||num(f.amt)).map(f=>({name:(f.name||'').trim().slice(0,60)||'Bill',amt:num(f.amt)})),
