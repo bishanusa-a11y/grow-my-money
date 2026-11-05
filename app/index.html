@@ -13,7 +13,7 @@
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif;background:#0A0A0A}img{max-width:100%}[hidden]{display:none!important}</style>
-<script>window.GMM_STATIC = true; window.GMM_BUILD = "2026-11-05.5";
+<script>window.GMM_STATIC = true; window.GMM_BUILD = "2026-11-05.6";
 if("serviceWorker" in navigator) addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 if(navigator.storage&&navigator.storage.persist) navigator.storage.persist().catch(()=>{});</script>
 </head>
@@ -304,7 +304,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
       <button class="iconbtn" id="prev" aria-label="Previous month">‹</button>
       <span class="lbl" id="mlabel">—</span>
       <button class="iconbtn" id="next" aria-label="Next month">›</button>
-      <button class="btn primary" id="jump-log" style="margin-left:8px">Log money</button>
+      <button class="btn primary" id="jump-log" style="margin-left:8px">Log spending</button>
       <button class="iconbtn" id="menu-btn" aria-label="Menu" aria-expanded="false" aria-haspopup="true" title="Menu">⋮</button>
       <div class="menu" id="menu" hidden role="menu">
         <button type="button" data-go="home|alerts-h">Alerts</button>
@@ -312,7 +312,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
         <button type="button" data-go="home|cf-h">Cash flow</button>
         <button type="button" data-go="home|month-h">This month</button>
         <div class="sep"></div>
-        <button type="button" data-go="log|log-h">Log money</button>
+        <button type="button" data-go="log|log-h">Log spending</button>
         <button type="button" data-go="log|entries-h">Spending log</button>
         <button type="button" data-go="log|imp-h">Import statement</button>
         <div class="sep"></div>
@@ -349,6 +349,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
           <p class="hint">Set these once. Do not change them when you pay the card, get paid back, or hand over money you were holding.</p>
           <label for="s-floor">Cash floor<input id="s-floor" inputmode="decimal"></label>
           <label for="s-income">Monthly income (added automatically)<input id="s-income" inputmode="decimal"></label>
+          <label for="s-extra">Extra bonus or income this month (added to Cash)<input id="s-extra" inputmode="decimal" placeholder="0"></label>
           <label for="s-inv">Investments (used only if no platforms are listed)<input id="s-inv" inputmode="decimal"></label>
           <label class="check" for="s-countinv"><input type="checkbox" id="s-countinv">Count in runway</label>
         </section>
@@ -463,8 +464,8 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
   </div>
   <div class="tab" id="tab-log" hidden>
   <section class="card" aria-labelledby="log-h" id="log-card">
-        <div class="card-head"><h2 id="log-h">Log money</h2>
-          <div class="typeseg" role="group" aria-label="Entry type">
+        <div class="card-head"><h2 id="log-h">Log spending</h2>
+          <div class="typeseg" role="group" aria-label="Entry type" hidden>
             <button type="button" id="t-exp" aria-pressed="true">Spent</button>
             <button type="button" id="t-inc" aria-pressed="false">Bonus / extra income</button>
           </div>
@@ -710,6 +711,17 @@ const goalsList=()=>(docs.goals&&docs.goals.items)||[];
 const invList=()=>(docs.invest&&docs.invest.items)||[];
 const invTotal=()=>{const l=invList().filter(i=>!i.locked);return l.length?l.reduce((a,i)=>a+num(i.value),0):num(S()&&S().investments)};
 const goalsSaved=()=>goalsList().reduce((a,g)=>a+num(g.saved),0);
+const extraId=()=>'extra-'+CUR;
+function extraThisMonth(){const d=docs['m-'+CUR];const e=d&&d.entries&&d.entries.find(x=>x.id===extraId());return e?num(e.amt):0}
+function setExtra(v){
+  v=Math.max(0,Math.round(num(v)*100)/100);
+  const key='m-'+CUR; const d=docs[key]?clone(docs[key]):{entries:[]}; if(!d.entries) d.entries=[];
+  const i=d.entries.findIndex(x=>x.id===extraId());
+  if(i>=0){if(v>0&&num(d.entries[i].amt)===v)return; if(v>0)d.entries[i].amt=v; else d.entries.splice(i,1)}
+  else if(v>0) d.entries.push({id:extraId(),date:isoToday(),amt:v,type:'income',note:'Extra bonus or income'});
+  else return;
+  save(key,d);
+}
 const bigSaved=()=>goalsList().filter(g=>g.big).reduce((a,g)=>a+num(g.saved),0);
 
 function monthData(mk){
@@ -1487,7 +1499,7 @@ function fillSettings(force){
   if(settingsDirty&&!force) return;
   const s=S()||{};
   $('#s-cur').value=s.currency||'$';$('#s-cash').value=s.openingCash??'';$('#s-cash-month').value=s.openingMonth||CUR;
-  $('#s-card').value=s.unpaidCard??'';$('#s-owed').value=s.owedToMe??'';$('#s-hold').value=s.holding??'';$('#s-floor').value=s.floor??'';$('#s-income').value=s.monthlyIncome??'';
+  $('#s-card').value=s.unpaidCard??'';$('#s-owed').value=s.owedToMe??'';$('#s-hold').value=s.holding??'';$('#s-floor').value=s.floor??'';$('#s-income').value=s.monthlyIncome??'';$('#s-extra').value=extraThisMonth()||'';
   $('#s-inv').value=s.investments??'';$('#s-countinv').checked=!!s.countInvest;$('#s-warn').value=s.warnAt??80;
   fxDraft=clone({f:s.fixed||[]}).f;renderFx();
   $('#bgrid').innerHTML=CATS.map(c=>`<label for="b-${c.k}">${c.name}${isHidden(c.k)?' (paused)':''}<input id="b-${c.k}" inputmode="decimal" value="${(s.budgets&&s.budgets[c.k])??''}"></label>`).join('');
@@ -1530,6 +1542,7 @@ function setupSettings(){
       budgets
     });
     settingsDirty=false;
+    setExtra(num($('#s-extra').value));
     save('settings',s).then(()=>{$('#set-status').textContent='Saved.';setTimeout(()=>$('#set-status').textContent='',3000)});
     closeSettings();toast('Settings saved.');
   });
