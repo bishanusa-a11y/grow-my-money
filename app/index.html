@@ -13,7 +13,7 @@
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif;background:#0A0A0A}img{max-width:100%}[hidden]{display:none!important}</style>
-<script>window.GMM_STATIC = true; window.GMM_BUILD = "2026-11-05.2";
+<script>window.GMM_STATIC = true; window.GMM_BUILD = "2026-11-05.3";
 if("serviceWorker" in navigator) addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 if(navigator.storage&&navigator.storage.persist) navigator.storage.persist().catch(()=>{});</script>
 </head>
@@ -339,7 +339,7 @@ textarea{min-height:110px;font-family:var(--f-mono);font-size:.78rem}
           <h3>Cash</h3>
           <label for="s-cur">Currency symbol (e.g. $, S$, RM, €)<input id="s-cur" maxlength="4"></label>
           <div class="row2">
-            <label for="s-cash">Starting cash (bank balance minus money set aside in goals)<input id="s-cash" inputmode="decimal"></label>
+            <label for="s-cash">Starting cash (bank balance)<input id="s-cash" inputmode="decimal"></label>
             <label for="s-cash-month">Month<input type="month" id="s-cash-month"></label>
           </div>
           <label for="s-card">Card owed on start date (full bill)<input id="s-card" inputmode="decimal"></label>
@@ -716,10 +716,10 @@ const bigSaved=()=>goalsList().filter(g=>g.big).reduce((a,g)=>a+num(g.saved),0);
 function monthData(mk){
   const s=S(), d=docs['m-'+mk], h=histMonth(mk);
   const cats={};CATS.forEach(c=>cats[c.k]=0);
-  let income=0, src='none';
+  let income=0, src='none', setAside=0, goalSpend=0;
   if(d&&d.entries&&d.entries.length){
     src='log';
-    d.entries.forEach(e=>{if(e.type==='income') income+=num(e.amt); else cats[CAT[e.cat]?e.cat:'oth']+=num(e.amt)});
+    d.entries.forEach(e=>{if(e.type==='income') income+=num(e.amt); else if(e.goalSpend) goalSpend+=num(e.amt); else {cats[CAT[e.cat]?e.cat:'oth']+=num(e.amt); if(e.goal) setAside+=num(e.amt)}});
   } else if(h){
     src='sheet'; CATS.forEach(c=>cats[c.k]=num(h.cats&&h.cats[c.k])); income=num(h.income);
   }
@@ -728,13 +728,13 @@ function monthData(mk){
   if(src==='sheet') fixed=num(h.fixed);
   else if(mk<=CUR && (src==='log'|| (s&&s.openingMonth&&mk>=s.openingMonth))) fixed=fixedTotal(s);
   if(src!=='sheet'&&s&&s.openingMonth&&mk>=s.openingMonth&&mk<=CUR) income+=num(s.monthlyIncome);
-  return {mk,cats,variable,income,fixed,total:fixed+variable,src};
+  return {mk,cats,variable,income,fixed,total:fixed+variable,src,setAside,goalSpend};
 }
 function cashNow(){
   const s=S(); if(!s||!s.openingMonth) return null;
   let c=num(s.openingCash)-num(s.unpaidCard)+num(s.owedToMe)-num(s.holding);
-  for(let mk=s.openingMonth;mk<=CUR;mk=mkAdd(mk,1)){const m=monthData(mk);c+=m.income-m.total}
-  return c-bigSaved();
+  for(let mk=s.openingMonth;mk<=CUR;mk=mkAdd(mk,1)){const m=monthData(mk);c+=m.income-m.total+m.setAside-m.goalSpend}
+  return c-goalsSaved();
 }
 function recent(){
   const ms=[1,2,3].map(i=>monthData(mkAdd(CUR,-i))).filter(m=>m.src!=='none');
@@ -1231,7 +1231,8 @@ function renderGoals(){
       if(a==='del'){const before=clone(docs.goals);items.splice(i,1);save('goals',{items});toast(`Deleted goal “${g.name}”.`,'Undo',()=>save('goals',before));return}
       let v=num(inp.value); if(!v){toast('Enter an amount first.');return}
       const gc=CAT[g.cat]||CAT.trv;
-      if(a==='spend'){const use=Math.min(v,num(items[i].saved));items[i].saved=Math.round((num(items[i].saved)-use)*100)/100;items[i].spent=Math.round((num(items[i].spent)+v)*100)/100}
+      if(a==='spend'){const use=Math.min(v,num(items[i].saved));items[i].saved=Math.round((num(items[i].saved)-use)*100)/100;items[i].spent=Math.round((num(items[i].spent)+v)*100)/100;
+        if(!g.big) addEntry({id:uid(),date:isoToday(),amt:v,type:'expense',cat:gc.k,note:'Paid from goal: '+g.name,goal:g.id,goalSpend:true},true)}
       else {
         if(a==='take') v=Math.min(v,num(items[i].saved));
         if(!v){toast('Nothing set aside to take back.');return}
@@ -1278,8 +1279,8 @@ function saveInvest(items,mk){
 function cashAt(mk){
   const s=S(); if(!s||!s.openingMonth||mk<s.openingMonth) return null;
   let c=num(s.openingCash)-num(s.unpaidCard)+num(s.owedToMe)-num(s.holding);
-  for(let m=s.openingMonth;m<=mk&&m<=CUR;m=mkAdd(m,1)){const d=monthData(m);c+=d.income-d.total}
-  return mk>=CUR?c-bigSaved():c;
+  for(let m=s.openingMonth;m<=mk&&m<=CUR;m=mkAdd(m,1)){const d=monthData(m);c+=d.income-d.total+d.setAside-d.goalSpend}
+  return c-goalsSaved();
 }
 function renderGrowth(){
   const sn=invSnaps(), s=S(), box=$('#inv-growth');
@@ -1657,7 +1658,7 @@ function parsePaste(txt,mk){
 function exportTsv(mk){
   const D=daysIn(mk), grid=[...Array(D)].map(()=>({}));
   const d=docs['m-'+mk];
-  ((d&&d.entries)||[]).forEach(e=>{if(e.type==='income')return;const day=+e.date.slice(8,10);if(day>=1&&day<=D){const k=SHEET_ORDER.includes(e.cat)?e.cat:null;if(k)grid[day-1][k]=(grid[day-1][k]||0)+num(e.amt)}});
+  ((d&&d.entries)||[]).forEach(e=>{if(e.type==='income'||e.goalSpend)return;const day=+e.date.slice(8,10);if(day>=1&&day<=D){const k=SHEET_ORDER.includes(e.cat)?e.cat:null;if(k)grid[day-1][k]=(grid[day-1][k]||0)+num(e.amt)}});
   return grid.map(r=>SHEET_ORDER.map(k=>r[k]?r[k].toFixed(2):'').join('\t')).join('\n');
 }
 
